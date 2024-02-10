@@ -2,19 +2,21 @@
 #![no_main]
 
 use core::arch::{asm, global_asm};
-use core::fmt::Write;
+// use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::ptr;
+// use core::ptr;
 
 global_asm!(include_str!("entry.s"));
 
 const HELLO: &str = "HELLO";
 
-fn uart_print() {
-    let bytes = sbi_rt::Physical::new(5, HELLO.as_ptr() as usize, 0);
-    sbi_rt::console_write(bytes);
-}
+// fn uart_print() {
+//     let bytes = sbi_rt::Physical::new(5, HELLO.as_ptr() as usize, 0);
+//     sbi_rt::console_write(bytes);
+// }
 
+// #[no_mangle]
+#[inline(always)]
 fn uart_print_asm(s: &str) {
     unsafe {
         asm!(

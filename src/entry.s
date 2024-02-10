@@ -4,7 +4,6 @@
     .section .text
 
 _start:
-    mv       zero, a0
     la       sp, _STACK_PTR
     call     main
     j        .
