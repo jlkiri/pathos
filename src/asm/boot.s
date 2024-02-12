@@ -18,10 +18,8 @@ _start:
 2:
     la       sp, _stack_end
 
-    li       t0, 1 << 11 | (1 << 13)               # Set MPP to S-mode
-    csrw     mstatus, t0
-
     la       t0, machine_interrupt_handler_table
+    addi     t0, t0, 1
     csrw     mtvec, t0
     li       t0, 1 << 5
     csrw     mideleg, t0
@@ -31,14 +29,28 @@ _start:
     la       t1, main
     csrw     mepc, t1
 
+    li       t0, 1 << 11                           # Set MPP to S-mode
+    csrw     mstatus, t0
+
+    jal      write_uart_byte
+    csrwi    pmpcfg0, 0xf
+    li       t0, -1
+    csrw     pmpaddr0, t0
+
     mret
 
     la       ra, 3f
 
 3:
+    li       t0, 0x69
+    li       t1, 0x10000000
+    sb       t0, (t1)
+
+write_uart_byte:
     li       t0, 0x68
     li       t1, 0x10000000
     sb       t0, (t1)
+    ret
 
     .balign  4
 machine_interrupt_handler_table:
@@ -46,9 +58,12 @@ machine_interrupt_handler_table:
     jal      zero, machine_timer_handler /* 7 */
 
 machine_timer_handler:
+# jal write_uart_byte
     li       t0, 1 << 5
     csrw     mip, t0                               # Enable STIP bit
     csrs     mie, t0                               # Enable STIE
+    li       t0, 1 << 11 | (1 << 13) | 1 << 3
+    csrw     mstatus, t0
     mret
 
 # la t2, mtvec_table
