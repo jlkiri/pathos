@@ -31,7 +31,7 @@ _start:
 
 
     csrwi    pmpcfg0, 0xf
-    li       t0, -1
+    li       t0, 0x3fffffffffffff
     csrw     pmpaddr0, t0
 
     la       t1, main
