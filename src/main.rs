@@ -78,9 +78,9 @@ pub extern "C" fn main() {
     //     ptr::write_volatile(UART, 'B' as u8);
     // }
 
-    setup_interrupt_table(handle_supervisor_interrupt);
-
     // setup_interrupt_table(handle_supervisor_interrupt);
+
+    setup_interrupt_table(handle_supervisor_interrupt);
 
     unsafe {
         ptr::write_volatile(UART, 'M' as u8);

@@ -31,29 +31,18 @@ _start:
     csrw              mtvec, t0
     li                t0, 1 << 5
     csrw              mideleg, t0
-# li t0, 1 << 7
-# csrw mie, t0
-
-    li                t0, (0b11 << 11)                        # Set MPP to M-mode
-    csrw              mstatus, t0
-
-
 
     write_serial_char 65
 
-# la t1, main
-# csrw mepc, t1\
     la                ra, 3f                                  # Return location after Rust-based entry code returns
     call              kinit
 
-# mret
-
 3:
     write_serial_char 67
-    li                t0, (1 << 11) | 1 << 5 | 1 << 3         # Set MPP to S-mode, enable SPIE and MIE
+    li                t0, (0b01 << 11) | 1 << 7               # Set MPP to S-mode, enable MPIE
     csrw              mstatus, t0
 
-    li                t0, 1 << 7
+    li                t0, 1 << 7                              # Enable machine timer interrupt
     csrw              mie, t0
 
     csrwi             pmpcfg0, 0xf
@@ -90,17 +79,15 @@ noop:
     nop
 
 exception_handler:
-# write_serial_char 90
-    mret
+    write_serial_char 90
+    j                 4b
 
 machine_timer_handler:
     write_serial_char 73
 
     li                t0, 1 << 5
     csrs              mip, t0                                 # Enable STIP bit
-    csrs              mie, t0                                 # Enable STIE
-
-
+# csrs mie, t0 # Enable STIE # THIS CAUSES EXCEPTIONS FOR SOME REASON
 
     li                t3, RISCV_MTIME_ADDR
     ld                t0, 0(t3)
