@@ -72,7 +72,7 @@ pub extern "C" fn kinit() {
 pub extern "C" fn main() {
     // uart_print();
     // uart_print_asm(HELLO);
-    // const UART: *mut u8 = 0x10000000 as *mut u8;
+    const UART: *mut u8 = 0x10000000 as *mut u8;
 
     // unsafe {
     //     ptr::write_volatile(UART, 'B' as u8);

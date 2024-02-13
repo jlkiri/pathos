@@ -37,9 +37,7 @@ _start:
     li                t0, (0b11 << 11)                        # Set MPP to M-mode
     csrw              mstatus, t0
 
-    csrwi             pmpcfg0, 0xf
-    li                t0, 0x3fffffffffffff
-    csrw              pmpaddr0, t0
+
 
     write_serial_char 65
 
@@ -55,6 +53,13 @@ _start:
     li                t0, (1 << 11) | 1 << 5 | 1 << 3         # Set MPP to S-mode, enable SPIE and MIE
     csrw              mstatus, t0
 
+    li                t0, 1 << 7
+    csrw              mie, t0
+
+    csrwi             pmpcfg0, 0xf
+    li                t0, 0x3fffffffffffff
+    csrw              pmpaddr0, t0
+
     la                t1, main
     csrw              mepc, t1
 
@@ -68,19 +73,34 @@ _start:
 machine_interrupt_handler_table:
     .org              machine_interrupt_handler_table + 0*4
     jal               zero, exception_handler
+    .org              machine_interrupt_handler_table + 1*4
+    jal               zero, noop /* 1 */
+    .org              machine_interrupt_handler_table + 3*4
+    jal               zero, noop /* 3 */
+    .org              machine_interrupt_handler_table + 5*4
+    jal               zero, noop /* 5 */
     .org              machine_interrupt_handler_table + 7*4
     jal               zero, machine_timer_handler /* 7 */
+    .org              machine_interrupt_handler_table + 9*4
+    jal               zero, noop /* 9 */
+    .org              machine_interrupt_handler_table + 11*4
+    jal               zero, noop /* 11 */
+
+noop:
+    nop
 
 exception_handler:
-    write_serial_char 90
-    j                 4b
+# write_serial_char 90
+    mret
 
 machine_timer_handler:
+    write_serial_char 73
+
     li                t0, 1 << 5
     csrs              mip, t0                                 # Enable STIP bit
     csrs              mie, t0                                 # Enable STIE
 
-    write_serial_char 73
+
 
     li                t3, RISCV_MTIME_ADDR
     ld                t0, 0(t3)
