@@ -42,7 +42,7 @@ _start:
     li                t0, (0b01 << 11) | 1 << 5               # Set MPP to S-mode, enable SPIE
     csrw              mstatus, t0
 
-    li                t0, 1 << 7 | 1 << 5                     # Enable machine timer interrupt
+    li                t0, 1 << 7 | 1 << 5                     # Enable machine & supervisor timer interrupt
     csrw              mie, t0
 
     csrwi             pmpcfg0, 0xf
@@ -52,8 +52,8 @@ _start:
     la                t1, main
     csrw              mepc, t1
 
-    la                t0, handle_supervisor_interrupt
-    csrw              stvec, t0
+# la t0, handle_supervisor_interrupt
+# csrw stvec, t0
 
     mret
 
@@ -88,8 +88,6 @@ exception_handler:
 machine_timer_handler:
     write_serial_char 73
 
-    li                t0, 1 << 5
-    csrs              mip, t0                                 # Enable STIP bit
 # csrs mie, t0 # Enable STIE
 
     li                t3, RISCV_MTIME_ADDR
@@ -98,5 +96,8 @@ machine_timer_handler:
     li                t1, 1000000
     add               t0, t0, t1
     sd                t0, 0(t2)
+
+    li                t0, 1 << 5                              # Enable STIP bit
+    csrs              mip, t0
 
     mret

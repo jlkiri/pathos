@@ -87,13 +87,20 @@ pub extern "C" fn main() {
 
     // setup_interrupt_table(handle_supervisor_interrupt);
 
-    // setup_interrupt_table(handle_supervisor_interrupt);
+    setup_interrupt_table(handle_supervisor_interrupt);
 
     unsafe {
         ptr::write_volatile(UART, 'M' as u8);
     }
 
-    unsafe { asm!("li t0, (1 << 5)", "csrw sie, t0") }
+    // unsafe {
+    //     asm!(
+    //         "li t0, (1 << 5)",
+    //         "csrw sie, t0",
+    //         "li t0, 1 << 2",
+    //         "csrw sstatus, t0"
+    //     )
+    // }
 
     loop {}
 }
