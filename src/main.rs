@@ -47,12 +47,19 @@ fn setup_interrupt_table(handler: fn()) {
 }
 
 #[naked]
+#[no_mangle]
 #[repr(align(4))]
 fn handle_supervisor_interrupt() {
     unsafe {
         // asm!(".align 4");
         // ptr::write_volatile(UART, 'X' as u8);
-        asm!("sret", options(noreturn))
+        asm!(
+            "li t0, 0x10000000",
+            "li t1, 0x68",
+            "sb t1, (t0)",
+            "sret",
+            options(noreturn)
+        )
     }
 }
 
@@ -80,11 +87,13 @@ pub extern "C" fn main() {
 
     // setup_interrupt_table(handle_supervisor_interrupt);
 
-    setup_interrupt_table(handle_supervisor_interrupt);
+    // setup_interrupt_table(handle_supervisor_interrupt);
 
     unsafe {
         ptr::write_volatile(UART, 'M' as u8);
     }
+
+    unsafe { asm!("li t0, (1 << 5)", "csrw sie, t0") }
 
     loop {}
 }
