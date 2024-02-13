@@ -1,69 +1,97 @@
-    .option  norvc
+    .equ              RISCV_MTIMECMP_ADDR, 0x2000000 + 0x4000
+    .equ              RISCV_MTIME_ADDR, 0x2000000 + 0xBFF8
 
-    .section .text.boot
-    .global  _start
+    .option           norvc
 
+    .macro            write_serial_char char
+    li                t0, \char
+    li                t1, 0x10000000
+    sb                t0, (t1)
+    .endm
+
+    .section          .text.boot
+    .global           _start
 _start:
-    csrw     satp, zero
+    csrw              satp, zero                              # Disable paging
 
-    la       a0, _bss_start
-    la       a1, _bss_end
-    bgeu     a0, a1, 2f
+    la                a0, _bss_start                          # Initialize BSS section to zero
+    la                a1, _bss_end
+    bgeu              a0, a1, 2f
 
 1:
-    sd       zero, (a0)
-    addi     a0, a0, 8
-    bltu     a0, a1, 1b
+    sd                zero, (a0)
+    addi              a0, a0, 8
+    bltu              a0, a1, 1b
 
 2:
-    la       sp, _stack_end
+    la                sp, _stack_end                          # Prepare to switch to Rust-based entry code
 
-    la       t0, machine_interrupt_handler_table
-    addi     t0, t0, 1
-    csrw     mtvec, t0
-    li       t0, 1 << 5
-    csrw     mideleg, t0
+    la                t0, machine_interrupt_handler_table
+    addi              t0, t0, 1
+    csrw              mtvec, t0
+    li                t0, 1 << 5
+    csrw              mideleg, t0
 # li t0, 1 << 7
 # csrw mie, t0
 
-    li       t0, (0b01 << 11)                      # Set MPP to S-mode
-    csrw     mstatus, t0
+    li                t0, (0b11 << 11)                        # Set MPP to M-mode
+    csrw              mstatus, t0
 
+    csrwi             pmpcfg0, 0xf
+    li                t0, 0x3fffffffffffff
+    csrw              pmpaddr0, t0
 
-    csrwi    pmpcfg0, 0xf
-    li       t0, 0x3fffffffffffff
-    csrw     pmpaddr0, t0
+    write_serial_char 65
 
-    la       t1, main
-    csrw     mepc, t1
+# la t1, main
+# csrw mepc, t1\
+    la                ra, 3f                                  # Return location after Rust-based entry code returns
+    call              kinit
+
+# mret
+
+3:
+    write_serial_char 67
+    li                t0, (1 << 11) | 1 << 5 | 1 << 3         # Set MPP to S-mode, enable SPIE and MIE
+    csrw              mstatus, t0
+
+    la                t1, main
+    csrw              mepc, t1
 
     mret
 
-    la       ra, 3f
+4:
+    wfi
+    j                 4b
 
-3:
-    li       t0, 0x69
-    li       t1, 0x10000000
-    sb       t0, (t1)
-
-write_uart_byte:
-    li       t0, 0x68
-    li       t1, 0x10000000
-    sb       t0, (t1)
-    ret
-
-    .balign  4
+    .balign           4
 machine_interrupt_handler_table:
-    .org     machine_interrupt_handler_table + 7*4
-    jal      zero, machine_timer_handler /* 7 */
+    .org              machine_interrupt_handler_table + 0*4
+    jal               zero, exception_handler
+    .org              machine_interrupt_handler_table + 7*4
+    jal               zero, machine_timer_handler /* 7 */
+
+exception_handler:
+    write_serial_char 90
+    j                 4b
 
 machine_timer_handler:
-    jal      write_uart_byte
-    li       t0, 1 << 5
-    csrw     mip, t0                               # Enable STIP bit
-    csrs     mie, t0                               # Enable STIE
-    li       t0, (0b01 << 11)
-    csrw     mstatus, t0
+    li                t0, 1 << 5
+    csrs              mip, t0                                 # Enable STIP bit
+    csrs              mie, t0                                 # Enable STIE
+
+    write_serial_char 73
+
+    li                t3, RISCV_MTIME_ADDR
+    ld                t0, 0(t3)
+    li                t2, RISCV_MTIMECMP_ADDR
+    li                t1, 1000000
+    add               t0, t0, t1
+    sd                t0, 0(t2)
+
+# li t0, 1 << 5 # Set SPIE
+# csrw mstatus, t0
+
     mret
 
 # la t2, mtvec_table
