@@ -32,13 +32,11 @@ _start:
     li                t0, 1 << 5
     csrw              mideleg, t0
 
-    write_serial_char 65
 
     la                ra, 3f                                  # Return location after Rust-based entry code returns
     call              kinit
 
 3:
-    write_serial_char 67
     li                t0, (0b01 << 11) | 1 << 5               # Set MPP to S-mode, enable SPIE
     csrw              mstatus, t0
 
@@ -82,13 +80,19 @@ noop:
     nop
 
 exception_handler:
-    write_serial_char 89
+    write_serial_char 69
+    write_serial_char 0xa
+
     j                 4b
 
 machine_timer_handler:
     write_serial_char 73
+    write_serial_char 0xa
 
 # csrs mie, t0 # Enable STIE
+
+    li                t0, 1 << 5                              # Enable STIP bit
+    csrs              mip, t0
 
     li                t3, RISCV_MTIME_ADDR
     ld                t0, 0(t3)
@@ -96,8 +100,5 @@ machine_timer_handler:
     li                t1, 1000000
     add               t0, t0, t1
     sd                t0, 0(t2)
-
-    li                t0, 1 << 5                              # Enable STIP bit
-    csrs              mip, t0
 
     mret

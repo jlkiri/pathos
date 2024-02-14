@@ -40,7 +40,9 @@ fn setup_interrupt_table(handler: fn()) {
         asm!(
             "csrw stvec, {}",
             "li t0, (1 << 5)",
-            "csrw sie, t0",
+            "csrs sie, t0",
+            // "li t0, 1 << 1",
+            // "csrw sstatus, t0",
             in(reg) handler
         )
     }
@@ -51,12 +53,18 @@ fn setup_interrupt_table(handler: fn()) {
 #[repr(align(4))]
 fn handle_supervisor_interrupt() {
     unsafe {
-        // asm!(".align 4");
-        // ptr::write_volatile(UART, 'X' as u8);
         asm!(
             "li t0, 0x10000000",
-            "li t1, 0x68",
+            "li t1, 0x53",
             "sb t1, (t0)",
+            "li t1, 0xa",
+            "sb t1, (t0)",
+            // "li t0, 1 << 5",
+            "csrw sip, zero",
+            "csrw scause, zero",
+            "csrw stval, zero",
+            "li t0, 1 << 8",
+            "csrs sstatus, t0",
             "sret",
             options(noreturn)
         )
@@ -68,8 +76,10 @@ pub extern "C" fn kinit() {
     // uart_print();
     // uart_print_asm(HELLO);
 
-    unsafe {
-        ptr::write_volatile(UART, 'B' as u8);
+    for char in "kinit\n".chars() {
+        unsafe {
+            ptr::write_volatile(UART, char as u8);
+        }
     }
 
     // loop {}
@@ -89,10 +99,6 @@ pub extern "C" fn main() {
 
     setup_interrupt_table(handle_supervisor_interrupt);
 
-    unsafe {
-        ptr::write_volatile(UART, 'M' as u8);
-    }
-
     // unsafe {
     //     asm!(
     //         "li t0, (1 << 5)",
@@ -101,6 +107,10 @@ pub extern "C" fn main() {
     //         "csrw sstatus, t0"
     //     )
     // }
+
+    unsafe {
+        ptr::write_volatile(UART, '0' as u8);
+    }
 
     loop {}
 }
