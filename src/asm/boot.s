@@ -26,79 +26,97 @@ _start:
 2:
     la                sp, _stack_end                          # Prepare to switch to Rust-based entry code
 
-    la                t0, machine_interrupt_handler_table
-    addi              t0, t0, 1
+    la                t0, machine_interrupt_handler
     csrw              mtvec, t0
-    li                t0, 1 << 5
+
+    li                t0, 1 << 5                              # Delegate software timer interrupt to S-mode
     csrw              mideleg, t0
 
-
-    la                ra, 3f                                  # Return location after Rust-based entry code returns
-    call              kinit
-
-3:
-    li                t0, (0b01 << 11) | 1 << 5               # Set MPP to S-mode, enable SPIE
-    csrw              mstatus, t0
-
-    li                t0, 1 << 7 | 1 << 5                     # Enable machine & supervisor timer interrupt
-    csrw              mie, t0
-
-    csrwi             pmpcfg0, 0xf
+    csrwi             pmpcfg0, 0xf                            # Let S-mode access all physical memory
     li                t0, 0x3fffffffffffff
     csrw              pmpaddr0, t0
 
+    li                t0, 0b01 << 11                          # Set MPP to S-mode
+    csrw              mstatus, t0
+
     la                t1, main
     csrw              mepc, t1
+    mret
 
-# la t0, handle_supervisor_interrupt
-# csrw stvec, t0
+    .balign           4
+machine_interrupt_handler:
+    csrr              t0, mcause
+    li                t1, 0x10000000
+    addi              t3, t0, 48                              # Print cause as ASCII number
+    sb                t3, (t1)
+
+    li                t2, 0x8000000000000007                  # == Machine timer interrupt
+    beq               t0, t2, machine_timer_handler
+
+    li                t2, 0x9                                 # == S-mode ECALL
+    beq               t0, t2, ecall_handler
+
+    write_serial_char 0x65                                    # Print 'e' (error)
+    j                 loop
 
     mret
 
-4:
-    wfi
-    j                 4b
+ecall_handler:
+    li                t0, 1
+    beq               t0, a0, setup_ecall_handler
 
-    .balign           4
-machine_interrupt_handler_table:
-    .org              machine_interrupt_handler_table + 0*4
-    jal               zero, exception_handler
-    .org              machine_interrupt_handler_table + 1*4
-    jal               zero, noop /* 1 */
-    .org              machine_interrupt_handler_table + 3*4
-    jal               zero, noop /* 3 */
-    .org              machine_interrupt_handler_table + 5*4
-    jal               zero, noop /* 5 */
-    .org              machine_interrupt_handler_table + 7*4
-    jal               zero, machine_timer_handler /* 7 */
-    .org              machine_interrupt_handler_table + 9*4
-    jal               zero, noop /* 9 */
-    .org              machine_interrupt_handler_table + 11*4
-    jal               zero, noop /* 11 */
+    li                t0, 2
+    beq               t0, a0, clear_stip_ecall_handler
 
-noop:
-    nop
+    write_serial_char 0x65                                    # Print 'e' (error)
+    j                 loop
 
-exception_handler:
-    write_serial_char 69
-    write_serial_char 0xa
 
-    j                 4b
+setup_ecall_handler:
+    li                t0, (1 << 5) | (1 << 7)
+    csrw              mie, t0
+
+    li                t0, (0b01 << 11) | (1 << 7)             # MPIE
+    csrs              mstatus, t0
+
+    li                t0, 1 << 9
+    csrc              mip, t0
+
+    csrr              t0, mepc
+    addi              t0, t0, 4                               # Return to next instruction after ECALL
+    csrw              mepc, t0
+
+    mv                a0, zero
+
+    write_serial_char 0x24                                    # Print '$'
+    mret
+
+clear_stip_ecall_handler:
+    li                t0, (1 << 9) | (1 << 5)
+    csrc              mip, t0
+
+    csrr              t0, mepc
+    addi              t0, t0, 4                               # Return to next instruction after ECALL
+    csrw              mepc, t0
+
+    mv                a0, zero
+
+    write_serial_char 0x24                                    # Print '$'
+    mret
 
 machine_timer_handler:
-    write_serial_char 73
-    write_serial_char 0xa
-
-# csrs mie, t0 # Enable STIE
-
-    li                t0, 1 << 5                              # Enable STIP bit
-    csrs              mip, t0
-
     li                t3, RISCV_MTIME_ADDR
     ld                t0, 0(t3)
     li                t2, RISCV_MTIMECMP_ADDR
-    li                t1, 1000000
+    li                t1, 10000000
     add               t0, t0, t1
     sd                t0, 0(t2)
 
+    li                t0, 1 << 5                              # Enable STIP bit to let S-mode handle the interrupt
+    csrs              mip, t0
+
+    write_serial_char 0x2a                                    # Print '*'
     mret
+
+loop:
+    j                 loop
