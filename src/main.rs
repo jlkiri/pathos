@@ -64,22 +64,14 @@ fn read_scause() -> Cause {
     unsafe {
         asm!(
             "csrr {0}, scause",
-            // "andi {0}, {0}, 0xf",
             out(reg) scause
         )
     }
 
-    uart_print("scause:");
     let cause = scause as i64;
-
     match cause.signum() {
-        1 => Cause::Exception(scause as u8),
-        -1 => {
-            let cause_char = (scause + 48) as u8 as char;
-            uart_print_char(cause_char);
-            uart_print_char('\n');
-            Cause::Interrupt(scause as u8)
-        }
+        1 => Cause::Exception(cause as u8),
+        -1 => Cause::Interrupt(cause as u8),
         _ => unreachable!(),
     }
 }
