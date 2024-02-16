@@ -4,6 +4,7 @@
 #![feature(naked_functions)]
 
 use core::arch::{asm, global_asm};
+use core::ops::Shr;
 // use core::f32::consts::PI;
 // // use core::fmt::Write;
 use core::panic::PanicInfo;
@@ -31,6 +32,12 @@ fn uart_print(s: &str) {
     for char in s.chars() {
         uart_print_char(char);
     }
+}
+
+fn uart_println(s: &str) {
+    for char in s.chars() {
+        uart_print_char(char);
+    }
     uart_print_char('\n');
 }
 
@@ -53,24 +60,26 @@ enum Cause {
 
 #[inline]
 fn read_scause() -> Cause {
-    let scause: i64;
+    let scause: u64;
     unsafe {
         asm!(
-            "csrr {}, scause",
+            "csrr {0}, scause",
+            // "andi {0}, {0}, 0xf",
             out(reg) scause
         )
     }
-    uart_print("scause: ");
 
-    let cause = (scause & 0xf) as u8;
-    let cause_char = (cause + 48) as u8 as char;
-    uart_print_char(cause_char);
+    uart_print("scause:");
+    let cause = scause as i64;
 
-    uart_print_char(((scause >> 63 & 0x1) + 48) as u8 as char);
-
-    match scause >> 63 & 0x1 {
-        0 => Cause::Exception(cause),
-        1 => Cause::Interrupt(cause),
+    match cause.signum() {
+        1 => Cause::Exception(scause as u8),
+        -1 => {
+            let cause_char = (scause + 48) as u8 as char;
+            uart_print_char(cause_char);
+            uart_print_char('\n');
+            Cause::Interrupt(scause as u8)
+        }
         _ => unreachable!(),
     }
 }
@@ -80,7 +89,7 @@ fn read_scause() -> Cause {
 fn dispatch_smode_interrupt() {
     match read_scause() {
         Cause::Interrupt(5) => {
-            uart_print("Software timer interrupt handled.");
+            uart_println("Software timer interrupt handled.");
             unsafe { asm!("li a0, 2", "ecall", "sret") }
         }
         _ => panic!(),
@@ -89,19 +98,19 @@ fn dispatch_smode_interrupt() {
 
 #[no_mangle]
 pub extern "C" fn main() {
-    uart_print("Entered S-mode handler setup.");
+    uart_println("Entered S-mode handler setup.");
 
     setup_interrupt_handlers(dispatch_smode_interrupt);
 
     unsafe { asm!("li t0, 1 << 1", "csrs sstatus, t0", "li a0, 1", "ecall") }
 
-    uart_print("Finished S-mode handler setup.");
+    uart_println("Finished S-mode handler setup.");
 
     loop {}
 }
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
-    uart_print("S-mode panic!");
+    uart_println("S-mode panic!");
     loop {}
 }
