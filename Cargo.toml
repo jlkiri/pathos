@@ -16,4 +16,4 @@ harness = false
 
 [[bin]]
 name = "interrupts"
-harness = false
+test = false

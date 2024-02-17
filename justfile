@@ -1,5 +1,6 @@
 # bin := "target/riscv64gc-unknown-none-elf/debug/interrupts"
 bin := "target/riscv64gc-unknown-none-elf/release/interrupts"
+cargo_unstable_flags := "-Z build-std=core,alloc"
 
 dump:
     @ riscv64-linux-objdump --disassemble --disassembler-color on -M no-aliases {{bin}}
@@ -22,13 +23,13 @@ gdb:
     @ gdb-multiarch --init-command cmds.gdb
 
 build:
-    cargo build -Z build-std=core,alloc --release
+    cargo build {{cargo_unstable_flags}} --release
 
 clean:
     cargo clean
 
 test:
-    cargo test -Z build-std=core,alloc --target riscv64gc-unknown-none-elf --release -- --nocapture
+    cargo test {{cargo_unstable_flags}} --target riscv64gc-unknown-none-elf --release
 
 
 
