@@ -4,11 +4,13 @@
 #![feature(naked_functions)]
 #![feature(abi_riscv_interrupt)]
 
+mod asm;
+
 use core::arch::asm;
 use core::panic::PanicInfo;
 use core::{fmt, ptr};
 
-// use interrupts::serial_println;
+use interrupts::serial_println;
 
 type HandlerFunc = extern "riscv-interrupt-s" fn();
 
@@ -41,7 +43,7 @@ fn read_scause() -> Cause {
 
     let cause = scause as i64;
 
-    // serial_println!("scause: {}", cause as u8);
+    serial_println!("scause: {}", cause as u8);
 
     match cause.signum() {
         1 => Cause::Exception(cause as u8),
@@ -55,11 +57,7 @@ fn read_scause() -> Cause {
 extern "riscv-interrupt-s" fn dispatch_smode_interrupt() {
     match read_scause() {
         Cause::Interrupt(5) => {
-            // serial_println!("OK: Software timer interrupt handled.");
-            const UART_ADDR: *mut u8 = 0x10000000 as *mut u8;
-            unsafe {
-                ptr::write_volatile(UART_ADDR as *mut u8, 'b' as u8);
-            }
+            serial_println!("OK: Software timer interrupt handled.");
             unsafe { asm!("li x31, 2", "ecall") }
         }
         _ => panic!(),
@@ -68,21 +66,16 @@ extern "riscv-interrupt-s" fn dispatch_smode_interrupt() {
 
 #[no_mangle]
 pub extern "C" fn main() {
-    const UART_ADDR: *mut u8 = 0x10000000 as *mut u8;
-    unsafe {
-        ptr::write_volatile(UART_ADDR as *mut u8, 'a' as u8);
-    }
-
     setup_interrupt_handlers(dispatch_smode_interrupt);
     unsafe { asm!("li t0, 1 << 1", "csrs sstatus, t0") }
 
-    // serial_println!("OK: S-mode interrupt handler setup.");
+    serial_println!("OK: S-mode interrupt handler setup.");
 
     loop {}
 }
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
-    // serial_println!("PANIC: S-mode panic!");
+    serial_println!("PANIC: S-mode panic!");
     loop {}
 }
