@@ -5,3 +5,7 @@ version = 3
 [[package]]
 name = "interrupts"
 version = "0.1.0"
+
+[[package]]
+name = "qemu"
+version = "0.1.0"

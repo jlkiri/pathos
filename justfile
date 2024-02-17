@@ -22,12 +22,13 @@ gdb:
     @ gdb-multiarch --init-command cmds.gdb
 
 build:
-    cargo build --release 
+    cargo build -Z build-std=core,alloc --release
+
+clean:
+    cargo clean
 
 test:
-    cargo test --target riscv64gc-unknown-none-elf --release 
+    cargo test -Z build-std=core,alloc --target riscv64gc-unknown-none-elf --release -- --nocapture
 
-clippy:
-    cargo clippy --fix
 
 
