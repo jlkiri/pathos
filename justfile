@@ -23,3 +23,6 @@ gdb:
 
 build:
     cargo build --release -Z build-std=core,alloc
+
+clippy:
+    cargo clippy --fix --target riscv64gc-unknown-none-elf
