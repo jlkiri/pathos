@@ -3,12 +3,12 @@
 #![feature(fn_align)]
 #![feature(naked_functions)]
 #![feature(abi_riscv_interrupt)]
+#![feature(custom_test_frameworks)]
 
 mod asm;
 
 use core::arch::asm;
 use core::panic::PanicInfo;
-use core::{fmt, ptr};
 
 use interrupts::serial_println;
 
