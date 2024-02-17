@@ -1,3 +1,3 @@
 fn main() {
-    println!("cargo:rustc-link-arg-bin=interrupts=-Tkernel.ld");
+    println!("cargo:rustc-link-arg-bin=pathos=-Tkernel.ld");
 }

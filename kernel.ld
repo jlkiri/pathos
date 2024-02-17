@@ -46,6 +46,4 @@ SECTIONS {
 
   PROVIDE(_heap_start = _stack_end);
   PROVIDE(_heap_size = _memory_end - _heap_start);
-
-  /* _L3_PAGETBL_PTR = .; */
 }

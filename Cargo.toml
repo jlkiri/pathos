@@ -5,7 +5,7 @@ members = [
 resolver = "2"
 
 [package]
-name = "interrupts"
+name = "pathos"
 version = "0.1.0"
 edition = "2021"
 
@@ -16,5 +16,8 @@ harness = false
 test = false
 
 [[bin]]
-name = "interrupts"
+name = "pathos"
 harness = false
+
+[dependencies]
+owo-colors = "4.0.0"
