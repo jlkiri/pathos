@@ -12,9 +12,9 @@
     .section          .text.boot
     .global           _start
 _start:
-    csrw              satp, zero                              # Disable paging
+    csrw              satp, zero                                   # Disable paging
 
-    la                a0, _bss_start                          # Initialize BSS section to zero
+    la                a0, _bss_start                               # Initialize BSS section to zero
     la                a1, _bss_end
     bgeu              a0, a1, 2f
 
@@ -24,20 +24,28 @@ _start:
     bltu              a0, a1, 1b
 
 2:
-    la                sp, _stack_end                          # Prepare to switch to Rust-based entry code
+    la                sp, _stack_end                               # Prepare to switch to Rust-based entry code
 
     la                t0, machine_interrupt_handler
     csrw              mtvec, t0
 
-    li                t0, 1 << 5                              # Delegate software timer interrupt to S-mode
+    li                t0, 1 << 5                                   # Delegate software timer interrupt to S-mode
     csrw              mideleg, t0
 
-    csrwi             pmpcfg0, 0xf                            # Let S-mode access all physical memory
+    csrwi             pmpcfg0, 0xf                                 # Let S-mode access all physical memory
     li                t0, 0x3fffffffffffff
     csrw              pmpaddr0, t0
 
-    li                t0, 0b01 << 11                          # Set MPP to S-mode
+    la                a0, pmp_ok
+    la                a1, 55
+    jal               ok_raw
+
+    li                t0, 0b01 << 11                               # Set MPP to S-mode
     csrw              mstatus, t0
+
+    la                a0, switch_ok
+    la                a1, 46
+    jal               ok_raw
 
     la                t1, main
     csrw              mepc, t1
@@ -50,13 +58,13 @@ machine_interrupt_handler:
 # addi t3, t0, 48 # Print cause as ASCII number
 # sb t3, (t1)
 
-    li                t2, 0x8000000000000007                  # == Machine timer interrupt
+    li                t2, 0x8000000000000007                       # == Machine timer interrupt
     beq               t0, t2, machine_timer_handler
 
-    li                t2, 0x9                                 # == S-mode ECALL
+    li                t2, 0x9                                      # == S-mode ECALL
     beq               t0, t2, ecall_handler
 
-    write_serial_char 0x65                                    # Print 'e' (error)
+    write_serial_char 0x65                                         # Print 'e' (error)
     j                 loop
 
     mret
@@ -68,7 +76,7 @@ ecall_handler:
     li                t0, 2
     beq               t0, x31, clear_stip_ecall_handler
 
-    write_serial_char 0x65                                    # Print 'e' (error)
+    write_serial_char 0x65                                         # Print 'e' (error)
     j                 loop
 
 
@@ -76,14 +84,14 @@ setup_ecall_handler:
     li                t0, (1 << 5) | (1 << 7)
     csrw              mie, t0
 
-    li                t0, (0b01 << 11) | (1 << 7) | (1 << 13) # Set MPP to S-mode, enable MPIE, and FS (which is needed to enable floating point load/store instructions)
+    li                t0, (0b01 << 11) | (1 << 7) | (1 << 13)      # Set MPP to S-mode, enable MPIE, and FS (which is needed to enable floating point load/store instructions)
     csrs              mstatus, t0
 
     li                t0, 1 << 9
     csrc              mip, t0
 
     csrr              t0, mepc
-    addi              t0, t0, 4                               # Return to next instruction after ECALL
+    addi              t0, t0, 4                                    # Return to next instruction after ECALL
     csrw              mepc, t0
 
     mv                x31, zero
@@ -96,7 +104,7 @@ clear_stip_ecall_handler:
     csrc              mip, t0
 
     csrr              t0, mepc
-    addi              t0, t0, 4                               # Return to next instruction after ECALL
+    addi              t0, t0, 4                                    # Return to next instruction after ECALL
     csrw              mepc, t0
 
     mv                x31, zero
@@ -112,7 +120,11 @@ machine_timer_handler:
     add               t0, t0, t1
     sd                t0, 0(t2)
 
-    li                t0, 1 << 5                              # Enable STIP bit to let S-mode handle the interrupt
+    la                a0, mti_ok
+    la                a1, 50
+    jal               ok_raw
+
+    li                t0, 1 << 5                                   # Enable STIP bit to let S-mode handle the interrupt
     csrs              mip, t0
 
 # write_serial_char 0x2a # Print '*'
@@ -120,3 +132,14 @@ machine_timer_handler:
 
 loop:
     j                 loop
+
+    .section          .data
+
+pmp_ok:
+    .string "PMP: Allow use of all physical memory 0x3fffffffffffff"
+
+switch_ok:
+    .string "Setup a stack and switch to Rust S-mode setup"
+
+mti_ok:
+    .string "M-mode: Handle & delegate machine timer interrupt"

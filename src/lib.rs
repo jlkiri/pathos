@@ -5,6 +5,7 @@
 #![feature(abi_riscv_interrupt)]
 #![feature(fn_ptr_trait)]
 #![feature(const_mut_refs)]
+#![feature(str_from_raw_parts)]
 // #![feature(custom_test_frameworks)]
 
 #[cfg(test)]
@@ -21,10 +22,16 @@ fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
 
+#[no_mangle]
 pub fn ok(s: &str) {
     let pathos_prelude = "PathOS".blue();
     let ok = "OK".green();
     serial_print!("{} ", pathos_prelude);
     serial_print!("[{}] ", ok);
     serial_println!("{}", s);
+}
+
+#[no_mangle]
+pub fn ok_raw(ptr: *const u8, len: usize) {
+    ok(unsafe { core::str::from_raw_parts(ptr, len) })
 }
