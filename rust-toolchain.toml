@@ -1,4 +1,4 @@
 [toolchain]
 channel = "nightly-x86_64-unknown-linux-gnu"
-components = [ "rustc" ]
+components = [ "rustc", "clippy" ]
 targets = ["riscv64gc-unknown-none-elf"]

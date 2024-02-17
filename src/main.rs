@@ -3,7 +3,7 @@
 #![feature(fn_align)]
 #![feature(naked_functions)]
 #![feature(abi_riscv_interrupt)]
-#![feature(custom_test_frameworks)]
+// #![feature(custom_test_frameworks)]
 
 mod asm;
 
@@ -24,6 +24,11 @@ fn setup_interrupt_handlers(dispatcher: HandlerFunc) {
             in(reg) dispatcher
         )
     }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate std;
 }
 
 enum Cause {
