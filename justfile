@@ -26,8 +26,8 @@ build:
 
 test:
     cargo test --target riscv64gc-unknown-none-elf --release 
-    
+
 clippy:
-    cargo clippy --fix --target riscv64gc-unknown-none-elf
+    cargo clippy --fix
 
 

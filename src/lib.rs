@@ -5,9 +5,6 @@
 #![feature(abi_riscv_interrupt)]
 // #![feature(custom_test_frameworks)]
 
-use core::mem;
-use core::panic::PanicInfo;
-
 pub mod serial;
 
 #[cfg(test)]

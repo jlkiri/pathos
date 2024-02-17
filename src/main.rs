@@ -26,11 +26,6 @@ fn setup_interrupt_handlers(dispatcher: HandlerFunc) {
     }
 }
 
-#[derive(Clone, Debug, Copy)]
-struct A {
-    a: [u8; 10],
-}
-
 enum Cause {
     Interrupt(u8),
     Exception(u8),
