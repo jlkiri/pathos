@@ -52,21 +52,6 @@ impl fmt::Write for Serial {
 }
 
 #[inline(always)]
-fn uart_print_char(char: char) {
-    unsafe {
-        ptr::write_volatile(UART_ADDR as *mut u8, char as u8);
-    }
-}
-
-#[inline(always)]
-fn uart_println(s: &str) {
-    for char in s.chars() {
-        uart_print_char(char);
-    }
-    uart_print_char('\n');
-}
-
-#[inline(always)]
 fn setup_interrupt_handlers(dispatcher: HandlerFunc) {
     unsafe {
         asm!(
@@ -109,7 +94,7 @@ fn read_scause() -> Cause {
 extern "riscv-interrupt-s" fn dispatch_smode_interrupt() {
     match read_scause() {
         Cause::Interrupt(5) => {
-            uart_println("OK: Software timer interrupt handled.");
+            serial_println!("OK: Software timer interrupt handled.");
             unsafe { asm!("li x31, 2", "ecall") }
         }
         _ => panic!(),
@@ -121,13 +106,13 @@ pub extern "C" fn main() {
     setup_interrupt_handlers(dispatch_smode_interrupt);
     unsafe { asm!("li t0, 1 << 1", "csrs sstatus, t0") }
 
-    uart_println("OK: S-mode interrupt handler setup.");
+    serial_println!("OK: S-mode interrupt handler setup.");
 
     loop {}
 }
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
-    uart_println("PANIC: S-mode panic!");
+    serial_println!("PANIC: S-mode panic!");
     loop {}
 }
