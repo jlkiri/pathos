@@ -46,9 +46,9 @@ _start:
     .balign           4
 machine_interrupt_handler:
     csrr              t0, mcause
-    li                t1, 0x10000000
-    addi              t3, t0, 48                              # Print cause as ASCII number
-    sb                t3, (t1)
+# li t1, 0x10000000
+# addi t3, t0, 48 # Print cause as ASCII number
+# sb t3, (t1)
 
     li                t2, 0x8000000000000007                  # == Machine timer interrupt
     beq               t0, t2, machine_timer_handler
@@ -63,10 +63,10 @@ machine_interrupt_handler:
 
 ecall_handler:
     li                t0, 1
-    beq               t0, a0, setup_ecall_handler
+    beq               t0, x31, setup_ecall_handler
 
     li                t0, 2
-    beq               t0, a0, clear_stip_ecall_handler
+    beq               t0, x31, clear_stip_ecall_handler
 
     write_serial_char 0x65                                    # Print 'e' (error)
     j                 loop
@@ -76,7 +76,7 @@ setup_ecall_handler:
     li                t0, (1 << 5) | (1 << 7)
     csrw              mie, t0
 
-    li                t0, (0b01 << 11) | (1 << 7)             # MPIE
+    li                t0, (0b01 << 11) | (1 << 7) | (1 << 13) # Set MPP to S-mode, enable MPIE, and FS (which is needed to enable floating point load/store instructions)
     csrs              mstatus, t0
 
     li                t0, 1 << 9
@@ -86,9 +86,9 @@ setup_ecall_handler:
     addi              t0, t0, 4                               # Return to next instruction after ECALL
     csrw              mepc, t0
 
-    mv                a0, zero
+    mv                x31, zero
 
-    write_serial_char 0x24                                    # Print '$'
+# write_serial_char 0x24 # Print '$'
     mret
 
 clear_stip_ecall_handler:
@@ -99,9 +99,9 @@ clear_stip_ecall_handler:
     addi              t0, t0, 4                               # Return to next instruction after ECALL
     csrw              mepc, t0
 
-    mv                a0, zero
+    mv                x31, zero
 
-    write_serial_char 0x24                                    # Print '$'
+# write_serial_char 0x24 # Print '$'
     mret
 
 machine_timer_handler:
@@ -115,7 +115,7 @@ machine_timer_handler:
     li                t0, 1 << 5                              # Enable STIP bit to let S-mode handle the interrupt
     csrs              mip, t0
 
-    write_serial_char 0x2a                                    # Print '*'
+# write_serial_char 0x2a # Print '*'
     mret
 
 loop:

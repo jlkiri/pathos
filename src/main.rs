@@ -2,24 +2,18 @@
 #![no_main]
 #![feature(fn_align)]
 #![feature(naked_functions)]
+#![feature(abi_riscv_interrupt)]
 
-use core::arch::{asm, global_asm};
-use core::ops::Shr;
-// use core::f32::consts::PI;
-// // use core::fmt::Write;
+use core::arch::asm;
 use core::panic::PanicInfo;
 use core::ptr;
 
-// use sbi_rt;
-// // use core::ptr;
-
-// // global_asm!(include_str!("entry.s"));
-
 mod asm;
+
+type HandlerFunc = extern "riscv-interrupt-s" fn();
 
 const UART: *mut u8 = 0x10000000 as *mut u8;
 
-// #[no_mangle]
 #[inline(always)]
 fn uart_print_char(char: char) {
     unsafe {
@@ -28,12 +22,6 @@ fn uart_print_char(char: char) {
 }
 
 #[inline(always)]
-fn uart_print(s: &str) {
-    for char in s.chars() {
-        uart_print_char(char);
-    }
-}
-
 fn uart_println(s: &str) {
     for char in s.chars() {
         uart_print_char(char);
@@ -42,11 +30,11 @@ fn uart_println(s: &str) {
 }
 
 #[inline(always)]
-fn setup_interrupt_handlers(dispatcher: fn()) {
+fn setup_interrupt_handlers(dispatcher: HandlerFunc) {
     unsafe {
         asm!(
             "csrw stvec, {}",
-            "li a0, 1",
+            "li x31, 1",
             "ecall",
             in(reg) dispatcher
         )
@@ -58,12 +46,12 @@ enum Cause {
     Exception(u8),
 }
 
-#[inline]
+#[inline(always)]
 fn read_scause() -> Cause {
     let scause: u64;
     unsafe {
         asm!(
-            "csrr {0}, scause",
+            "csrr {}, scause",
             out(reg) scause
         )
     }
@@ -76,13 +64,13 @@ fn read_scause() -> Cause {
     }
 }
 
-#[no_mangle]
+// #[no_mangle]
 #[repr(align(4))]
-fn dispatch_smode_interrupt() {
+extern "riscv-interrupt-s" fn dispatch_smode_interrupt() {
     match read_scause() {
         Cause::Interrupt(5) => {
-            uart_println("Software timer interrupt handled.");
-            unsafe { asm!("li a0, 2", "ecall", "sret") }
+            uart_println("OK: Software timer interrupt handled.");
+            unsafe { asm!("li x31, 2", "ecall") }
         }
         _ => panic!(),
     }
@@ -90,19 +78,16 @@ fn dispatch_smode_interrupt() {
 
 #[no_mangle]
 pub extern "C" fn main() {
-    uart_println("Entered S-mode handler setup.");
-
     setup_interrupt_handlers(dispatch_smode_interrupt);
+    unsafe { asm!("li t0, 1 << 1", "csrs sstatus, t0") }
 
-    unsafe { asm!("li t0, 1 << 1", "csrs sstatus, t0", "li a0, 1", "ecall") }
-
-    uart_println("Finished S-mode handler setup.");
+    uart_println("OK: S-mode interrupt handler setup.");
 
     loop {}
 }
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
-    uart_println("S-mode panic!");
+    uart_println("PANIC: S-mode panic!");
     loop {}
 }
