@@ -1,8 +1,18 @@
-#![cfg_attr(not(test), no_std)]
-#![cfg_attr(not(test), no_main)]
+#![no_std]
+#![no_main]
 #![feature(fn_align)]
 #![feature(naked_functions)]
 #![feature(abi_riscv_interrupt)]
 // #![feature(custom_test_frameworks)]
 
+use core::mem;
+use core::panic::PanicInfo;
+
 pub mod serial;
+
+#[cfg(test)]
+#[panic_handler]
+fn panic(_info: &PanicInfo) -> ! {
+    serial_println!("PANIC: S-mode panic!");
+    loop {}
+}

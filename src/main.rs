@@ -1,4 +1,4 @@
-#![cfg_attr(not(test), no_std)]
+#![no_std]
 #![no_main]
 #![feature(fn_align)]
 #![feature(naked_functions)]
@@ -26,9 +26,9 @@ fn setup_interrupt_handlers(dispatcher: HandlerFunc) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    extern crate std;
+#[derive(Clone, Debug, Copy)]
+struct A {
+    a: [u8; 10],
 }
 
 enum Cause {
@@ -79,6 +79,14 @@ pub extern "C" fn main() {
     loop {}
 }
 
+#[cfg(test)]
+#[panic_handler]
+fn panic(_info: &PanicInfo) -> ! {
+    serial_println!("PANIC: S-mode panic!");
+    loop {}
+}
+
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     serial_println!("PANIC: S-mode panic!");
