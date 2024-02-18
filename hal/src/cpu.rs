@@ -5,7 +5,7 @@ pub enum Cause {
     Exception(u8),
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Mstatus {
     pub sie: u8,
     pub mie: u8,
@@ -31,7 +31,7 @@ pub struct Mip {
     pub msip: u8,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Mideleg {
     pub ssi: u8,
     pub sti: u8,
@@ -224,7 +224,7 @@ pub fn write_mip(mip: Mip) {
 }
 
 #[inline(always)]
-pub fn write_mepc(addr: *mut u8) {
+pub fn write_mepc(addr: *const ()) {
     unsafe {
         asm!(
             "csrw mepc, {}",
@@ -234,7 +234,7 @@ pub fn write_mepc(addr: *mut u8) {
 }
 
 #[inline(always)]
-pub fn write_mepc_next(addr: u64) {
+pub fn write_mepc_next(addr: *const ()) {
     unsafe {
         asm!(
             "addi {0}, {0}, 4",
@@ -348,6 +348,16 @@ impl fmt::Display for Mip {
     }
 }
 
+impl fmt::Display for Mideleg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "mideleg ::: ssi: {:b}, sti: {:b}, mti: {:b}, msi: {:b}",
+            self.ssi, self.sti, self.mti, self.msi
+        )
+    }
+}
+
 impl fmt::Display for Sstatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -373,8 +383,8 @@ impl fmt::Display for Sie {
 impl fmt::Display for Cause {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Cause::Interrupt(cause) => write!(f, "INT cause # {}", cause),
-            Cause::Exception(cause) => write!(f, "EXC cause # {}", cause),
+            Cause::Interrupt(cause) => write!(f, "[INT] cause # {}", cause),
+            Cause::Exception(cause) => write!(f, "[EXC] cause # {}", cause),
         }
     }
 }

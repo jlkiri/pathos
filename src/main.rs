@@ -9,6 +9,7 @@
 mod asm;
 
 use core::arch::asm;
+use core::marker::FnPtr;
 use core::panic::PanicInfo;
 use hal::cpu::{Mideleg, Mstatus};
 use lazy_static::lazy_static;
@@ -32,7 +33,7 @@ pub fn kinit() {
     serial_info!("Enter machine mode boot setup");
 
     let mideleg = Mideleg {
-        mti: 1,
+        sti: 1,
         ..Default::default()
     };
 
@@ -41,9 +42,14 @@ pub fn kinit() {
         ..Default::default()
     };
 
-    hal::cpu::write_mideleg(mideleg);
-    hal::cpu::write_mstatus(mstatus);
-    // hal::cpu::write_mepc(main as *mut u8);
+    hal::cpu::write_mideleg(mideleg.clone());
+    crate::serial_debug!("[WRITE] {}", mideleg);
+
+    hal::cpu::write_mstatus(mstatus.clone());
+    crate::serial_debug!("[WRITE] {}", mstatus);
+
+    hal::cpu::write_mepc((main as fn()).addr());
+    crate::serial_debug!("[WRITE] mepc <main> ::: {:?}", (main as fn()).addr());
 }
 
 #[no_mangle]
@@ -68,6 +74,8 @@ pub fn m_panic() -> ! {
 #[panic_handler]
 #[no_mangle]
 pub fn panic(_info: &PanicInfo) -> ! {
+    crate::serial_error!("Kernel panic!");
+
     let mstatus = hal::cpu::read_mstatus();
     let mie = hal::cpu::read_mie();
     let mip = hal::cpu::read_mip();
@@ -76,7 +84,7 @@ pub fn panic(_info: &PanicInfo) -> ! {
     crate::serial_debug!("{}", mstatus);
     crate::serial_debug!("{}", mie);
     crate::serial_debug!("{}", mip);
-    crate::serial_debug!("{}", mcause);
+    crate::serial_debug!("M-mode: {}", mcause);
 
     loop {}
 }
@@ -95,7 +103,7 @@ fn panic(_info: &PanicInfo) -> ! {
     crate::serial_debug!("{}", mstatus);
     crate::serial_debug!("{}", mie);
     crate::serial_debug!("{}", mip);
-    crate::serial_debug!("{}", mcause);
+    crate::serial_debug!("M-mode: {}", mcause);
 
     loop {}
 }
