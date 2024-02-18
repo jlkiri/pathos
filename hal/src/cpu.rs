@@ -5,6 +5,7 @@ pub enum Cause {
     Exception(u8),
 }
 
+#[derive(Default)]
 pub struct Mstatus {
     pub sie: u8,
     pub mie: u8,
@@ -30,6 +31,7 @@ pub struct Mip {
     pub msip: u8,
 }
 
+#[derive(Default)]
 pub struct Mideleg {
     pub ssi: u8,
     pub sti: u8,
@@ -144,6 +146,24 @@ pub fn read_mstatus() -> Mstatus {
 }
 
 #[inline(always)]
+pub fn write_mstatus(mstatus: Mstatus) {
+    let mstatus = (mstatus.sie as u64) << 1
+        | (mstatus.mie as u64) << 3
+        | (mstatus.upie as u64) << 4
+        | (mstatus.spie as u64) << 5
+        | (mstatus.mpie as u64) << 7
+        | (mstatus.spp as u64) << 8
+        | (mstatus.mpp as u64) << 11
+        | (mstatus.fs as u64) << 13;
+    unsafe {
+        asm!(
+            "csrw mstatus, {}",
+            in(reg) mstatus
+        )
+    }
+}
+
+#[inline(always)]
 pub fn read_mideleg() -> Mideleg {
     let mideleg: u64;
     unsafe {
@@ -204,7 +224,7 @@ pub fn write_mip(mip: Mip) {
 }
 
 #[inline(always)]
-pub fn write_mepc(addr: u64) {
+pub fn write_mepc(addr: *mut u8) {
     unsafe {
         asm!(
             "csrw mepc, {}",
@@ -220,6 +240,27 @@ pub fn write_mepc_next(addr: u64) {
             "addi {0}, {0}, 4",
             "csrw mepc, {0}",
             in(reg) addr
+        )
+    }
+}
+
+#[inline(always)]
+pub fn write_mtvec(fun: fn()) {
+    unsafe {
+        asm!(
+            "csrw mtvec, {}",
+            in(reg) fun
+        )
+    }
+}
+
+#[inline(always)]
+pub fn write_stvec_vectored(fun: fn()) {
+    unsafe {
+        asm!(
+            "addi {0}, {0}, 1",
+            "csrw stvec, {0}",
+            in(reg) fun
         )
     }
 }
@@ -332,8 +373,8 @@ impl fmt::Display for Sie {
 impl fmt::Display for Cause {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Cause::Interrupt(cause) => write!(f, "interrupt cause # {}", cause),
-            Cause::Exception(cause) => write!(f, "exception cause # {}", cause),
+            Cause::Interrupt(cause) => write!(f, "INT cause # {}", cause),
+            Cause::Exception(cause) => write!(f, "EXC cause # {}", cause),
         }
     }
 }

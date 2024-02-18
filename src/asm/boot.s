@@ -26,21 +26,17 @@ _start:
 2:
     la                sp, _stack_end                               # Prepare to switch to Rust-based entry code
 
-    la                t0, machine_interrupt_handler
-    csrw              mtvec, t0
-
-    li                t0, 1 << 5                                   # Delegate software timer interrupt to S-mode
-    csrw              mideleg, t0
-
     csrwi             pmpcfg0, 0xf                                 # Let S-mode access all physical memory
     li                t0, 0x3fffffffffffff
     csrw              pmpaddr0, t0
 
-    li                t0, 0b01 << 11                               # Set MPP to S-mode
-    csrw              mstatus, t0
+    call kinit
 
-    la                t1, main
-    csrw              mepc, t1
+    la                t0, machine_interrupt_handler
+    csrw              mtvec, t0
+
+    la                t0, main
+    csrw              mepc, t0
     mret
 
     .balign           4
@@ -53,8 +49,7 @@ machine_interrupt_handler:
     li                t2, 0x9                                      # == S-mode ECALL
     beq               t0, t2, ecall_handler
 
-    write_serial_char 0x65                                         # Print 'e' (error)
-    j                 loop
+    call m_panic
 
     mret
 
@@ -65,8 +60,7 @@ ecall_handler:
     li                t0, 2
     beq               t0, x31, clear_stip_ecall_handler
 
-    write_serial_char 0x65                                         # Print 'e' (error)
-    j                 loop
+    call m_panic
 
 
 setup_ecall_handler:

@@ -33,15 +33,8 @@ impl InterruptIndex {
 impl InterruptVectorTable {
     #[inline(always)]
     pub fn init(&self) {
-        unsafe {
-            asm!(
-                "addi t0, t0, 1", // Enable vectored mode
-                "csrw stvec, t0",
-                "li x31, 1",
-                "ecall",
-                in("t0") Self::stvec_table
-            )
-        }
+        hal::cpu::write_stvec_vectored(Self::stvec_table);
+        unsafe { asm!("li x31, 1", "ecall") }
     }
 
     #[no_mangle]
@@ -58,7 +51,7 @@ impl InterruptVectorTable {
     #[no_mangle]
     #[naked]
     #[repr(align(4))]
-    fn stvec_table(&self) {
+    fn stvec_table() {
         unsafe {
             asm!(
                 ".org {1} + 1 * 4",
