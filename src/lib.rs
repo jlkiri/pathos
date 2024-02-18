@@ -10,7 +10,6 @@
 
 #[cfg(test)]
 use core::panic::PanicInfo;
-use owo_colors::OwoColorize;
 
 pub mod interrupts;
 pub mod serial;
@@ -18,20 +17,12 @@ pub mod serial;
 #[cfg(test)]
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
-    serial_println!("PANIC: S-mode panic!");
+    error!("S-mode kernel panic!");
     loop {}
 }
 
 #[no_mangle]
-pub fn ok(s: &str) {
-    let pathos_prelude = "PathOS".blue();
-    let ok = "OK".green();
-    serial_print!("{} ", pathos_prelude);
-    serial_print!("[{}] ", ok);
-    serial_println!("{}", s);
-}
-
-#[no_mangle]
-pub fn ok_raw(ptr: *const u8, len: usize) {
-    ok(unsafe { core::str::from_raw_parts(ptr, len) })
+pub fn mprint(ptr: *const u8, len: usize) {
+    let s = unsafe { core::str::from_raw_parts(ptr, len) };
+    // serial_info(s)
 }

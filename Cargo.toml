@@ -1,5 +1,6 @@
 [workspace]
-members = [
+members = [ 
+    "hal",
     "qemu",
 ]
 resolver = "2"
@@ -20,4 +21,6 @@ name = "pathos"
 harness = false
 
 [dependencies]
+lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+hal = { path = "hal" }
 owo-colors = "4.0.0"

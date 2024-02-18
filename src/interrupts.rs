@@ -2,14 +2,9 @@ use core::arch::asm;
 use core::marker::FnPtr;
 use core::panic::PanicInfo;
 
-use crate::serial_println;
+use crate::serial_info;
 
 type HandlerFunc = extern "riscv-interrupt-s" fn();
-
-enum Cause {
-    Interrupt(u8),
-    Exception(u8),
-}
 
 static mut Handlers: [HandlerFunc; 12] = [noop; 12];
 
@@ -87,33 +82,20 @@ impl InterruptVectorTable {
     }
 }
 
-#[inline(always)]
-fn read_scause() -> Cause {
-    let scause: u64;
-    unsafe {
-        asm!(
-            "csrr {}, scause",
-            out(reg) scause
-        )
-    }
-
-    let cause = scause as i64;
-
-    match cause.signum() {
-        1 => Cause::Exception(cause as u8),
-        -1 => Cause::Interrupt(cause as u8),
-        _ => unreachable!(),
-    }
-}
-
 extern "riscv-interrupt-s" fn noop() {}
 
 pub extern "riscv-interrupt-s" fn dispatch_smode_interrupt() {
-    match read_scause() {
-        Cause::Interrupt(5) => {
-            crate::ok("Handle pending software timer interrupt");
-            unsafe { asm!("li x31, 2", "ecall") }
-        }
-        _ => panic!(),
-    }
+    crate::serial_info!("Handle pending software timer interrupt");
+
+    let sstatus = hal::cpu::read_sstatus();
+    let sie = hal::cpu::read_sie();
+    let sip = hal::cpu::read_sip();
+    let scause = hal::cpu::read_scause();
+
+    crate::serial_debug!("{}", sstatus);
+    crate::serial_debug!("{}", sie);
+    crate::serial_debug!("{}", sip);
+    crate::serial_debug!("{}", scause);
+
+    unsafe { asm!("li x31, 2", "ecall") }
 }

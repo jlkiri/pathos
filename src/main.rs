@@ -10,24 +10,31 @@ mod asm;
 
 use core::arch::asm;
 use core::panic::PanicInfo;
+use lazy_static::lazy_static;
 
 use pathos::interrupts::{self, InterruptIndex, InterruptVectorTable};
-use pathos::{ok, serial_print, serial_println};
+use pathos::serial_info;
+
+lazy_static! {
+    static ref IVT: InterruptVectorTable = {
+        let mut ivt = InterruptVectorTable {};
+        ivt.register_handler(
+            InterruptIndex::SupervisorTimer,
+            interrupts::dispatch_smode_interrupt,
+        );
+        ivt
+    };
+}
 
 #[no_mangle]
-pub extern "C" fn main() {
-    ok("Enter supervisor mode boot setup");
+pub fn main() {
+    serial_info!("Enter supervisor mode boot setup");
 
-    let mut ivt = InterruptVectorTable {};
-    ivt.register_handler(
-        InterruptIndex::SupervisorTimer,
-        interrupts::dispatch_smode_interrupt,
-    );
-    ivt.init();
+    IVT.init();
 
     unsafe { asm!("li t0, 1 << 1", "csrs sstatus, t0") }
 
-    ok("Setup interrupt vector table");
+    serial_info!("Setup interrupt vector table");
 
     loop {}
 }
@@ -42,6 +49,6 @@ fn panic(_info: &PanicInfo) -> ! {
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
-    serial_println!("PANIC: S-mode panic!");
+    serial_info!("PANIC: S-mode panic!");
     loop {}
 }

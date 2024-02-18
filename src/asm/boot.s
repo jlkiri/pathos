@@ -36,16 +36,8 @@ _start:
     li                t0, 0x3fffffffffffff
     csrw              pmpaddr0, t0
 
-    la                a0, pmp_ok
-    la                a1, 55
-    jal               ok_raw
-
     li                t0, 0b01 << 11                               # Set MPP to S-mode
     csrw              mstatus, t0
-
-    la                a0, switch_ok
-    la                a1, 46
-    jal               ok_raw
 
     la                t1, main
     csrw              mepc, t1
@@ -54,9 +46,6 @@ _start:
     .balign           4
 machine_interrupt_handler:
     csrr              t0, mcause
-# li t1, 0x10000000
-# addi t3, t0, 48 # Print cause as ASCII number
-# sb t3, (t1)
 
     li                t2, 0x8000000000000007                       # == Machine timer interrupt
     beq               t0, t2, machine_timer_handler
@@ -87,9 +76,6 @@ setup_ecall_handler:
     li                t0, (0b01 << 11) | (1 << 7) | (1 << 13)      # Set MPP to S-mode, enable MPIE, and FS (which is needed to enable floating point load/store instructions)
     csrs              mstatus, t0
 
-    li                t0, 1 << 9
-    csrc              mip, t0
-
     csrr              t0, mepc
     addi              t0, t0, 4                                    # Return to next instruction after ECALL
     csrw              mepc, t0
@@ -100,7 +86,7 @@ setup_ecall_handler:
     mret
 
 clear_stip_ecall_handler:
-    li                t0, (1 << 9) | (1 << 5)
+    li                t0, 1 << 5
     csrc              mip, t0
 
     csrr              t0, mepc
@@ -109,7 +95,6 @@ clear_stip_ecall_handler:
 
     mv                x31, zero
 
-# write_serial_char 0x24 # Print '$'
     mret
 
 machine_timer_handler:
@@ -120,26 +105,10 @@ machine_timer_handler:
     add               t0, t0, t1
     sd                t0, 0(t2)
 
-    la                a0, mti_ok
-    la                a1, 50
-    jal               ok_raw
-
     li                t0, 1 << 5                                   # Enable STIP bit to let S-mode handle the interrupt
     csrs              mip, t0
 
-# write_serial_char 0x2a # Print '*'
     mret
 
 loop:
     j                 loop
-
-    .section          .data
-
-pmp_ok:
-    .string "PMP: Allow use of all physical memory 0x3fffffffffffff"
-
-switch_ok:
-    .string "Setup a stack and switch to Rust S-mode setup"
-
-mti_ok:
-    .string "M-mode: Handle & delegate machine timer interrupt"
