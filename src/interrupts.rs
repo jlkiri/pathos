@@ -1,17 +1,7 @@
 use core::arch::asm;
-use core::marker::FnPtr;
-use core::panic::PanicInfo;
-
-use crate::serial_info;
-
-type HandlerFunc = extern "riscv-interrupt-s" fn();
-
-static mut Handlers: [HandlerFunc; 12] = [noop; 12];
-
-pub struct InterruptVectorTable {}
 
 #[repr(u8)]
-pub enum InterruptIndex {
+enum InterruptIndex {
     SupervisorSoftware = 1,
     MachineSoftware = 3,
     SupervisorTimer = 5,
@@ -20,64 +10,20 @@ pub enum InterruptIndex {
     MachineExternal = 11,
 }
 
-impl InterruptIndex {
-    fn as_u8(self) -> u8 {
-        self as u8
-    }
+pub struct MachineInterruptVectorTable;
 
-    fn as_usize(self) -> usize {
-        self.as_u8() as usize
-    }
+#[inline(always)]
+pub fn init_s_mode_ivt() {
+    hal::cpu::write_stvec_vectored(stvec_table);
+    unsafe { asm!("li x31, 1", "ecall") }
 }
 
-impl InterruptVectorTable {
-    #[inline(always)]
-    pub fn init(&self) {
-        hal::cpu::write_stvec_vectored(Self::stvec_table);
-        unsafe { asm!("li x31, 1", "ecall") }
-    }
-
-    #[no_mangle]
-    #[repr(align(4))]
-    #[inline(always)]
-    pub fn handle_sti(&self) {
-        unsafe { Handlers[InterruptIndex::SupervisorTimer.as_usize()]() }
-    }
-
-    pub fn register_handler(&mut self, index: InterruptIndex, handler: HandlerFunc) {
-        unsafe { Handlers[index.as_usize()] = handler }
-    }
-
-    #[no_mangle]
-    #[naked]
-    #[repr(align(4))]
-    fn stvec_table() {
-        unsafe {
-            asm!(
-                ".org {1} + 1 * 4",
-                "jal {0}",
-                ".org {1} + 3 * 4",
-                "jal {0}",
-                ".org {1} + 5 * 4",
-                "jal {2}",
-                ".org {1} + 7 * 4",
-                "jal {0}",
-                ".org {1} + 9 * 4",
-                "jal {0}",
-                ".org {1} + 11 * 4",
-                "jal {0}",
-                sym noop,
-                sym InterruptVectorTable::stvec_table,
-                sym InterruptVectorTable::handle_sti,
-                options(noreturn)
-            )
-        }
-    }
+#[inline(always)]
+pub fn init_m_mode_ivt() {
+    hal::cpu::write_mtvec(mtvec_table);
 }
 
-extern "riscv-interrupt-s" fn noop() {}
-
-pub extern "riscv-interrupt-s" fn dispatch_smode_interrupt() {
+extern "riscv-interrupt-s" fn handle_sti() {
     crate::serial_info!("Handle pending software timer interrupt");
 
     let sstatus = hal::cpu::read_sstatus();
@@ -91,4 +37,99 @@ pub extern "riscv-interrupt-s" fn dispatch_smode_interrupt() {
     crate::serial_debug!("{}", scause);
 
     unsafe { asm!("li x31, 2", "ecall") }
+}
+
+extern "riscv-interrupt-m" fn handle_mti() {
+    crate::serial_info!("Handle pending machine timer interrupt");
+
+    let mstatus = hal::cpu::read_mstatus();
+    let mie = hal::cpu::read_mie();
+    let mip = hal::cpu::read_mip();
+    let mcause = hal::cpu::read_mcause();
+
+    crate::serial_debug!("{}", mstatus);
+    crate::serial_debug!("{}", mie);
+    crate::serial_debug!("{}", mip);
+    crate::serial_debug!("{}", mcause);
+}
+
+extern "riscv-interrupt-s" fn noop() {
+    crate::serial_info!("NOOP");
+    unsafe { asm!("li x31, 2", "ecall") }
+}
+
+fn handle_machine_exception() {
+    let mcause = hal::cpu::read_mcause();
+    match mcause {
+        hal::cpu::Cause::Exception(9) => {}
+        _ => panic!(),
+    }
+
+    crate::serial_info!("Handle machine exception");
+    // panic!()
+    // loop {}
+}
+
+#[no_mangle]
+#[repr(align(4))]
+fn stvec_table() {
+    unsafe {
+        asm!(
+            ".org {stvec} + {ssi_idx} * 4",
+            "jal {noop}",
+            ".org {stvec} + {msi_idx} * 4",
+            "jal {noop}",
+            ".org {stvec} + {sti_idx} * 4",
+            "jal {handle_sti}",
+            ".org {stvec} + {mti_idx} * 4",
+            "jal {noop}",
+            ".org {stvec} + {sei_idx} * 4",
+            "jal {noop}",
+            ".org {stvec} + {mei_idx} * 4",
+            "jal {noop}",
+            noop = sym noop,
+            stvec = sym stvec_table,
+            handle_sti = sym handle_sti,
+            ssi_idx = const InterruptIndex::SupervisorSoftware as u8,
+            msi_idx = const InterruptIndex::MachineSoftware as u8,
+            sti_idx = const InterruptIndex::SupervisorTimer as u8,
+            mti_idx = const InterruptIndex::MachineTimer as u8,
+            sei_idx = const InterruptIndex::SupervisorExternal as u8,
+            mei_idx = const InterruptIndex::MachineExternal as u8,
+            options(noreturn)
+        )
+    }
+}
+
+#[no_mangle]
+#[repr(align(4))]
+fn mtvec_table() {
+    unsafe {
+        asm!(
+            "jal {handle_exc}",
+            ".org {mtvec} + {ssi_idx} * 4",
+            "jal {noop}",
+            ".org {mtvec} + {msi_idx} * 4",
+            "jal {noop}",
+            ".org {mtvec} + {sti_idx} * 4",
+            "jal {noop}",
+            ".org {mtvec} + {mti_idx} * 4",
+            "jal {handle_mti}",
+            ".org {mtvec} + {sei_idx} * 4",
+            "jal {noop}",
+            ".org {mtvec} + {mei_idx} * 4",
+            "jal {noop}",
+            noop = sym noop,
+            mtvec = sym mtvec_table,
+            handle_exc = sym handle_machine_exception,
+            handle_mti = sym handle_mti,
+            ssi_idx = const InterruptIndex::SupervisorSoftware as u8,
+            msi_idx = const InterruptIndex::MachineSoftware as u8,
+            sti_idx = const InterruptIndex::SupervisorTimer as u8,
+            mti_idx = const InterruptIndex::MachineTimer as u8,
+            sei_idx = const InterruptIndex::SupervisorExternal as u8,
+            mei_idx = const InterruptIndex::MachineExternal as u8,
+            options(noreturn)
+        )
+    }
 }

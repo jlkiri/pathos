@@ -6,6 +6,7 @@
 #![feature(fn_ptr_trait)]
 #![feature(const_mut_refs)]
 #![feature(str_from_raw_parts)]
+#![feature(asm_const)]
 // #![feature(custom_test_frameworks)]
 
 #[cfg(test)]

@@ -146,6 +146,19 @@ pub fn read_mstatus() -> Mstatus {
 }
 
 #[inline(always)]
+pub fn read_mtval() -> *const () {
+    let mtval: *const ();
+    unsafe {
+        asm!(
+            "csrr {}, mtval",
+            out(reg) mtval
+        )
+    }
+
+    mtval
+}
+
+#[inline(always)]
 pub fn write_mstatus(mstatus: Mstatus) {
     let mstatus = (mstatus.sie as u64) << 1
         | (mstatus.mie as u64) << 3
@@ -224,6 +237,19 @@ pub fn write_mip(mip: Mip) {
 }
 
 #[inline(always)]
+pub fn read_mepc() -> *const () {
+    let mepc: *const ();
+    unsafe {
+        asm!(
+            "csrr {}, mepc",
+            out(reg) mepc
+        )
+    }
+
+    mepc
+}
+
+#[inline(always)]
 pub fn write_mepc(addr: *const ()) {
     unsafe {
         asm!(
@@ -255,12 +281,12 @@ pub fn write_mtvec(fun: fn()) {
 }
 
 #[inline(always)]
-pub fn write_stvec_vectored(fun: fn()) {
+pub fn write_stvec_vectored(addr: fn()) {
     unsafe {
         asm!(
             "addi {0}, {0}, 1",
             "csrw stvec, {0}",
-            in(reg) fun
+            in(reg) addr
         )
     }
 }
