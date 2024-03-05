@@ -9,8 +9,8 @@ mod asm;
 
 extern crate alloc;
 
-use core::arch::asm;
-use core::marker::FnPtr;
+use ::core::arch::asm;
+use ::core::marker::FnPtr;
 use hal_core::page::{EntryFlags, Page, PageTable, Vaddr};
 use hal_riscv::cpu::{Mideleg, Mstatus, Satp, Sstatus};
 use pathos::alloc::init_allocator;
@@ -20,6 +20,7 @@ use pathos::{
     TEXT_START,
 };
 use pathos::{serial_debug, serial_info, serial_println};
+// use wasmi::*;
 
 const LOGO: &str = include_str!("logo.txt");
 
@@ -102,6 +103,39 @@ pub fn main() {
     let sstatus = hal_riscv::cpu::read_sstatus();
     let sstatus = Sstatus { sie: 1, ..sstatus };
     hal_riscv::cpu::set_sstatus(sstatus);
+
+    // let engine = Engine::default();
+    // let wat = r#"
+    //     (module
+    //         (import "host" "hello" (func $host_hello (param i32)))
+    //         (func (export "hello")
+    //             (call $host_hello (i32.const 3))
+    //         )
+    //     )
+    // "#;
+
+    // let wasm = include_bytes!("../test.wasm").to_vec();
+    // let module = Module::new(&engine, &wasm[..]).expect("Failed to create module");
+    // type HostState = u32;
+    // let mut store = Store::new(&engine, 42);
+    // let host_hello = Func::wrap(&mut store, |caller: Caller<'_, HostState>, param: i32| {
+    //     // println!("Got {param} from WebAssembly");
+    //     // println!("My host state is: {}", caller.data());
+    // });
+    // let mut linker = <Linker<HostState>>::new(&engine);
+    // linker
+    //     .define("host", "hello", host_hello)
+    //     .expect("Failed to define host function");
+    // let instance = linker
+    //     .instantiate(&mut store, &module)
+    //     .expect("Failed to instantiate module")
+    //     .start(&mut store)
+    //     .expect("Failed to start module");
+    // let hello = instance
+    //     .get_typed_func::<(), ()>(&store, "hello")
+    //     .expect("Failed to get function");
+    // // And finally we can call the wasm!
+    // hello.call(&mut store, ()).expect("Failed to call function");
 
     loop {}
 }
