@@ -1,51 +1,99 @@
 extern crate alloc;
 
-use crate::debug::{dump_machine_registers, dump_supervisor_registers};
+use crate::debug::{dump_machine_registers, dump_supervisor_registers, dump_trap_frame};
 use crate::ecall::{self, ecall, Ecall};
-use crate::serial_debug;
+use crate::serial::write_empty_line;
+use crate::{
+    nop_loop, restore_cpu_registers, save_cpu_registers, serial_debug, Scheduler, TrapFrame,
+    SCHEDULER,
+};
 use core::marker::FnPtr;
 
 use core::arch::asm;
-use hal_riscv::cpu::{Exception, Interrupt, Mie, Mip, Mstatus};
+use core::mem::size_of;
+use core::panic;
+use hal_core::page::Vaddr;
+use hal_riscv::cpu::{self, read_mstatus, Exception, Interrupt, Mie, Mip, Mstatus, Sstatus};
+use once_cell::unsync::Lazy;
 
 #[inline(always)]
 pub fn init_s_mode_ivt() {
     serial_debug!("[WRITE] stvec ::: {:?}", (stvec_table as fn()).addr());
     hal_riscv::cpu::write_stvec_vectored(stvec_table);
-    ecall(Ecall::SModeFinishBootstrap)
 }
 
 #[inline(always)]
 pub fn init_m_mode_ivt() {
-    serial_debug!("[WRITE] mtvec ::: {:?}", (mtvec_table as fn()).addr());
-    hal_riscv::cpu::write_mtvec_vectored(mtvec_table);
+    // serial_debug!(
+    //     "[WRITE] mtvec ::: {:?}",
+    //     (interrupt_handler_naked as fn()).addr()
+    // );
+    // hal_riscv::cpu::write_mtvec_vectored(interrupt_handler_naked);
+    hal_riscv::cpu::write_mtvec(interrupt_handler_naked);
 }
 
-extern "riscv-interrupt-s" fn handle_sti() {
-    crate::serial_info!("Software timer interrupt");
+// #[naked]
+// fn handle_mti_naked() {
+//     unsafe {
+//         asm!(
+//             "csrrw a0, mscratch, a0",
+//             "sd ra, 0(a0)",
+//             "jal {save_cpu_registers}",
+//             "ld sp, 232(a0)",
+//             "j {handle_mti}",
+//             handle_mti = sym handle_mti,
+//             save_cpu_registers = sym save_cpu_registers,
+//             options(noreturn)
+//         )
+//     }
+// }
 
-    dump_supervisor_registers();
-
-    ecall(Ecall::ClearPendingInterrupt(
-        Interrupt::SupervisorTimer as u8,
-    ));
-}
-
-extern "riscv-interrupt-m" fn handle_mti() {
-    crate::serial_info!("Machine timer interrupt");
+#[inline(always)]
+fn handle_mti() {
+    // crate::serial_info!("Machine timer interrupt");
 
     let mut mtime = hal_riscv::timer::read_mtime();
-    mtime += 16_000_000;
+    mtime += 10_000_000;
     hal_riscv::timer::write_mtimecmp(mtime);
 
-    let mip = hal_riscv::cpu::read_mip();
+    let mstatus = read_mstatus();
+    let mstatus = Mstatus { mpp: 0, ..mstatus };
+    cpu::write_mstatus(mstatus);
 
-    dump_machine_registers();
+    schedule_next_program();
+}
 
-    let mip = Mip { stip: 1, ..mip };
-    hal_riscv::cpu::write_mip(mip.clone());
+#[inline(always)]
+fn schedule_next_program() {
+    let (next_tid, mepc) = {
+        let mut cell = SCHEDULER.lock();
+        let scheduler = cell.get_mut().expect("Scheduler not initialized");
 
-    crate::serial_debug!("[WRITE] {}", mip);
+        let mepc = cpu::read_mepc() as u64;
+
+        serial_debug!("Saving state for program ::: {:#x?}", mepc);
+
+        scheduler.save_state(mepc);
+
+        let (tid, task) = scheduler.next();
+
+        cpu::write_mepc(task.pc.inner() as *const ());
+        (tid, task.pc.inner())
+    };
+
+    let ptr = get_task_frame_ptr(next_tid);
+
+    unsafe {
+        asm!(
+            "jal {restore_cpu_registers}",
+            "csrw mscratch, a0",
+            "ld ra, 0(a0)",
+            "ld a0, 168(a0)",
+            "mret",
+            in("a0") ptr,
+            restore_cpu_registers = sym restore_cpu_registers
+        )
+    }
 }
 
 extern "riscv-interrupt-s" fn noop() {
@@ -54,36 +102,98 @@ extern "riscv-interrupt-s" fn noop() {
 
 #[no_mangle]
 fn dispatch_machine_exception() {
-    let mcause = hal_riscv::cpu::read_mcause();
+    use hal_riscv::cpu::Cause;
+
+    let mcause = cpu::read_mcause();
     match mcause {
-        hal_riscv::cpu::Cause::Exception(Exception::SupervisorEcall) => {
+        Cause::Exception(Exception::SupervisorEcall) => {
             let ecall = ecall::read_ecall();
 
             crate::serial_info!("S-mode ECALL ::: {:?}", ecall);
-            dump_machine_registers();
 
             match ecall {
                 Ecall::SModeFinishBootstrap => handle_smode_finish_bootstrap(),
-                Ecall::ClearPendingInterrupt(cause) => handle_clear_pending_interrupt(cause),
+                _ => {
+                    panic!("Unimplemented S-mode ecall handler ::: {:?}", mcause)
+                }
+            }
+        }
+        Cause::Exception(Exception::UserEcall) => {
+            dump_machine_registers();
+            serial_debug!("{:?} ::: {:?}", Exception::UserEcall, mcause);
+            schedule_next_program()
+        }
+        Cause::Exception(ref exc @ _) => {
+            dump_machine_registers();
+            serial_debug!("{:?} ::: {:?}", exc, mcause);
+            loop {}
+        }
+        _ => {
+            dump_machine_registers();
+            panic!("Unimplemented M-mode exception ::: {:?}", mcause)
+        }
+    }
+
+    unsafe { asm!("mret", clobber_abi("system")) }
+}
+
+#[no_mangle]
+fn dispatch_supervisor_exception() {
+    let scause = hal_riscv::cpu::read_scause();
+    match scause {
+        hal_riscv::cpu::Cause::Exception(Exception::UserEcall) => {
+            let ecall = ecall::read_ecall();
+
+            crate::serial_info!("U-mode ECALL ::: {:?}", ecall);
+
+            match ecall {
+                Ecall::Exit(_code) => {
+                    dump_supervisor_registers();
+                    // let sp = hal_riscv::cpu::read_sscratch();
+
+                    crate::serial_error!("Program exited with code: {}", _code);
+                    // crate::serial_error!("Restoring stack pointer from sscratch: {:x?}", sp);
+
+                    // hal_riscv::cpu::write_sp(sp);
+                    cpu::set_sstatus(Sstatus {
+                        spp: 1,
+                        ..Default::default()
+                    });
+
+                    hal_riscv::cpu::write_sepc(nop_loop as *const ());
+                }
+                _ => {
+                    panic!("Unimplemented U-mode ecall handler ::: {:?}", scause)
+                }
             }
 
-            unsafe { asm!("mret", clobber_abi("system")) }
+            unsafe { asm!("sret", clobber_abi("system")) }
         }
-        _ => panic!("mcause: {}", mcause),
+        _ => {
+            panic!("Unimplemented S-mode exception ::: {:?}", scause)
+        }
     }
+}
+
+#[inline(never)]
+fn get_task_frame_ptr(tid: usize) -> *const TrapFrame {
+    let mut cell = SCHEDULER.lock();
+    let scheduler = cell.get_mut().expect("Scheduler not initialized");
+    &scheduler.task(tid).trap_frame as *const _
 }
 
 #[inline(always)]
 fn handle_smode_finish_bootstrap() {
+    serial_debug!("Finish supervisor bootstrap");
+
     let mie = Mie {
         mtie: 1,
-        stie: 1,
         ..Default::default()
     };
 
     let mstatus = hal_riscv::cpu::read_mstatus();
     let mstatus = Mstatus {
-        mpp: 1,
+        mpp: 0,
         mpie: 1,
         fs: 1,
         ..mstatus
@@ -91,30 +201,39 @@ fn handle_smode_finish_bootstrap() {
 
     hal_riscv::cpu::write_mie(mie.clone());
     hal_riscv::cpu::write_mstatus(mstatus.clone());
-    hal_riscv::cpu::write_mepc_next();
+    hal_riscv::cpu::write_mepc(0x20_0000_0000 as *const ());
 
     crate::serial_debug!("[WRITE] {}", mie);
     crate::serial_debug!("[WRITE] {}", mstatus);
+
+    let ptr = get_task_frame_ptr(0);
+
+    unsafe {
+        asm!(
+            "jal {restore_cpu_registers}",
+            "csrw mscratch, a0",
+            "mv ra, zero",
+            // "ld a0, 168(a0)",
+            "mv a0, zero",
+            "mret",
+            in("a0") ptr,
+            restore_cpu_registers = sym restore_cpu_registers
+        )
+    }
 }
 
 #[inline(always)]
-fn handle_clear_pending_interrupt(cause: u8) {
-    hal_riscv::cpu::clear_mip(cause);
-    hal_riscv::cpu::write_mepc_next();
-}
-
-#[no_mangle]
 #[repr(align(4))]
 fn stvec_table() {
     unsafe {
         asm!(
-            "jal {noop}",
+            "jal {handle_exc}",
             ".org {stvec} + {ssi_idx} * 4",
             "jal {noop}",
             ".org {stvec} + {msi_idx} * 4",
             "jal {noop}",
             ".org {stvec} + {sti_idx} * 4",
-            "jal {handle_sti}",
+            "jal {noop}",
             ".org {stvec} + {mti_idx} * 4",
             "jal {noop}",
             ".org {stvec} + {sei_idx} * 4",
@@ -123,47 +242,53 @@ fn stvec_table() {
             "jal {noop}",
             noop = sym noop,
             stvec = sym stvec_table,
-            handle_sti = sym handle_sti,
+            handle_exc = sym dispatch_supervisor_exception,
             ssi_idx = const Interrupt::SupervisorSoftware as u8,
             msi_idx = const Interrupt::MachineSoftware as u8,
             sti_idx = const Interrupt::SupervisorTimer as u8,
             mti_idx = const Interrupt::MachineTimer as u8,
             sei_idx = const Interrupt::SupervisorExternal as u8,
             mei_idx = const Interrupt::MachineExternal as u8,
+            options(noreturn, nostack)
+        )
+    }
+}
+
+#[inline(always)]
+#[no_mangle]
+#[repr(align(4))]
+fn interrupt_handler_naked() {
+    unsafe {
+        asm!(
+            "csrrw a0, mscratch, a0",
+            "beqz a0, {interrupt_handler}",
+            "sd ra, 0(a0)",
+            "jal {save_cpu_registers}",
+            "ld sp, 232(a0)",
+            "j {interrupt_handler}",
+            save_cpu_registers = sym save_cpu_registers,
+            interrupt_handler = sym interrupt_handler,
             options(noreturn)
         )
     }
 }
 
-#[no_mangle]
-#[repr(align(4))]
-fn mtvec_table() {
-    unsafe {
-        asm!(
-            "jal {handle_exc}",
-            ".org {mtvec} + {ssi_idx} * 4",
-            "jal {noop}",
-            ".org {mtvec} + {msi_idx} * 4",
-            "jal {noop}",
-            ".org {mtvec} + {sti_idx} * 4",
-            "jal {noop}",
-            ".org {mtvec} + {mti_idx} * 4",
-            "jal {handle_mti}",
-            ".org {mtvec} + {sei_idx} * 4",
-            "jal {noop}",
-            ".org {mtvec} + {mei_idx} * 4",
-            "jal {noop}",
-            noop = sym noop,
-            mtvec = sym mtvec_table,
-            handle_exc = sym dispatch_machine_exception,
-            handle_mti = sym handle_mti,
-            ssi_idx = const Interrupt::SupervisorSoftware as u8,
-            msi_idx = const Interrupt::MachineSoftware as u8,
-            sti_idx = const Interrupt::SupervisorTimer as u8,
-            mti_idx = const Interrupt::MachineTimer as u8,
-            sei_idx = const Interrupt::SupervisorExternal as u8,
-            mei_idx = const Interrupt::MachineExternal as u8,
-            options(noreturn)
-        )
+#[inline(always)]
+fn interrupt_handler() {
+    use hal_riscv::cpu::Cause;
+    let mcause = cpu::read_mcause();
+
+    write_empty_line();
+    serial_debug!("Machine cause: {:?}", mcause);
+
+    if matches!(mcause, Cause::Exception(_)) {
+        dispatch_machine_exception();
     }
+
+    if matches!(mcause, Cause::Interrupt(Interrupt::MachineTimer)) {
+        // unsafe { dump_trap_frame() }
+        handle_mti();
+    }
+
+    unsafe { asm!("mret") }
 }

@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use crate::{ALLOC_START, HEAP_SIZE, HEAP_START};
+use crate::{serial_debug, ALLOC_START, HEAP_SIZE, HEAP_START};
 
 use allocator::buddy::BuddyAllocator;
 use core::alloc::{GlobalAlloc, Layout};

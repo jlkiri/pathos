@@ -1,5 +1,3 @@
-use core::ops::Add;
-
 /// Sv39 page table
 #[repr(align(4096))]
 pub struct PageTable {
@@ -7,7 +5,7 @@ pub struct PageTable {
 }
 
 /// Sv39 page table entry
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(transparent)]
 pub struct PageTableEntry(u64);
 
@@ -46,11 +44,17 @@ pub enum EntryFlags {
     RW = 1 << 1 | 1 << 2,
     RX = 1 << 1 | 1 << 3,
     RWX = 1 << 1 | 1 << 2 | 1 << 3,
+    RWXU = 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4,
+    RWU = 1 << 1 | 1 << 2 | 1 << 4,
 }
 
 impl EntryFlags {
     pub fn as_u64(self) -> u64 {
         self as u64
+    }
+
+    pub fn from(bits: u64) -> Self {
+        unsafe { core::mem::transmute(bits) }
     }
 }
 
@@ -65,6 +69,11 @@ impl PageTableEntry {
 
     pub fn is_leaf(&self) -> bool {
         self.0 & EntryFlags::RWX.as_u64() != 0
+    }
+
+    pub fn flags(&self) -> u64 {
+        // unsafe { core::mem::transmute(self.0 & 0xff) }
+        self.0
     }
 
     pub fn set_paddr(&mut self, paddr: Paddr) {
@@ -94,6 +103,10 @@ impl Vaddr {
     pub fn new(addr: u64) -> Self {
         // Make bits 39-63 copy of bit 38 to form a canonical address
         Self(((addr << 25) as i64 >> 25) as u64)
+    }
+
+    pub fn offset(&self) -> u64 {
+        self.0 & 0xfff
     }
 
     pub fn indexed_vpn(self) -> [usize; 3] {
@@ -164,10 +177,35 @@ impl Iterator for PageRange {
     type Item = Page;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.start.0 < self.end.0 {
+        if self.start.0 <= self.end.0 {
             let page = Page::containing_address(self.start.0);
             self.start.0 += 0x1000;
             Some(page)
+        } else {
+            None
+        }
+    }
+}
+
+pub struct FrameRange {
+    start: Paddr,
+    end: Paddr,
+}
+
+impl FrameRange {
+    pub fn new(start: Paddr, end: Paddr) -> Self {
+        Self { start, end }
+    }
+}
+
+impl Iterator for FrameRange {
+    type Item = Frame;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start.0 <= self.end.0 {
+            let frame = Frame::containing_address(self.start.0);
+            self.start.0 += 0x1000;
+            Some(frame)
         } else {
             None
         }

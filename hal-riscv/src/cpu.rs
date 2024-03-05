@@ -108,6 +108,11 @@ pub struct Mideleg {
     pub msi: u8,
 }
 
+#[derive(Default, Clone)]
+pub struct Medeleg {
+    pub uecall: u8,
+}
+
 #[derive(Debug, Default)]
 pub struct Sstatus {
     pub sie: u8,
@@ -183,6 +188,75 @@ pub fn write_satp(satp: Satp) {
 }
 
 #[inline(always)]
+pub fn write_sscratch(addr: usize) {
+    unsafe {
+        asm!(
+            "csrw sscratch, {}",
+            in(reg) addr
+        )
+    }
+}
+
+#[inline(always)]
+pub fn write_mscratch<T>(addr: *const T) {
+    unsafe {
+        asm!(
+            "csrw mscratch, {}",
+            in(reg) addr
+        )
+    }
+}
+
+#[inline(always)]
+pub fn read_sscratch() -> usize {
+    let sscratch: usize;
+    unsafe {
+        asm!(
+            "csrr {}, sscratch",
+            out(reg) sscratch
+        )
+    }
+
+    sscratch
+}
+
+#[inline(always)]
+pub fn read_mscratch<T>() -> *const T {
+    let mscratch: *const T;
+    unsafe {
+        asm!(
+            "csrr {}, mscratch",
+            out(reg) mscratch
+        )
+    }
+
+    mscratch
+}
+
+#[inline(always)]
+pub fn write_sp(addr: *const u8) {
+    unsafe {
+        asm!(
+            "mv sp, {}",
+            in(reg) addr
+        )
+    }
+}
+
+#[inline(always)]
+pub fn read_sp() -> *const u8 {
+    let sp: *const u8;
+    unsafe {
+        asm!(
+            "mv {}, sp",
+            out(reg) sp
+        )
+    }
+
+    sp
+}
+
+#[inline(always)]
 pub fn read_mip() -> Mip {
     let mip: u64;
     unsafe {
@@ -241,8 +315,8 @@ pub fn read_mstatus() -> Mstatus {
 }
 
 #[inline(always)]
-pub fn read_mtval() -> *const () {
-    let mtval: *const ();
+pub fn read_mtval() -> *const u32 {
+    let mtval: *const u32;
     unsafe {
         asm!(
             "csrr {}, mtval",
@@ -251,6 +325,19 @@ pub fn read_mtval() -> *const () {
     }
 
     mtval
+}
+
+#[inline(always)]
+pub fn read_stval() -> *const () {
+    let stval: *const ();
+    unsafe {
+        asm!(
+            "csrr {}, stval",
+            out(reg) stval
+        )
+    }
+
+    stval
 }
 
 #[inline(always)]
@@ -304,6 +391,17 @@ pub fn write_mideleg(mideleg: Mideleg) {
 }
 
 #[inline(always)]
+pub fn write_medeleg(medeleg: Medeleg) {
+    let medeleg = (medeleg.uecall as u64) << 8;
+    unsafe {
+        asm!(
+            "csrw medeleg, {}",
+            in(reg) medeleg
+        )
+    }
+}
+
+#[inline(always)]
 pub fn write_mie(mie: Mie) {
     let mie = (mie.ssie as u64) << 1
         | (mie.stie as u64) << 5
@@ -351,6 +449,19 @@ pub fn read_mepc() -> *const () {
 }
 
 #[inline(always)]
+pub fn read_sepc() -> *const () {
+    let sepc: *const ();
+    unsafe {
+        asm!(
+            "csrr {}, sepc",
+            out(reg) sepc
+        )
+    }
+
+    sepc
+}
+
+#[inline(always)]
 pub fn write_mepc(addr: *const ()) {
     unsafe {
         asm!(
@@ -361,8 +472,25 @@ pub fn write_mepc(addr: *const ()) {
 }
 
 #[inline(always)]
+pub fn write_sepc(addr: *const ()) {
+    unsafe {
+        asm!(
+            "csrw sepc, {}",
+            in(reg) addr
+        )
+    }
+}
+
+#[inline(always)]
 pub fn write_mepc_next() {
-    unsafe { asm!("csrr t0, mepc", "addi t0, t0, 4", "csrw mepc, t0") }
+    unsafe {
+        asm!(
+            "csrr t0, mepc",
+            "addi t0, t0, 4",
+            "csrw mepc, t0",
+            "mv t0, zero"
+        )
+    }
 }
 
 #[inline(always)]
@@ -370,6 +498,16 @@ pub fn write_mtvec_vectored(fun: fn()) {
     unsafe {
         asm!(
             "addi {0}, {0}, 1",
+            "csrw mtvec, {0}",
+            in(reg) fun
+        )
+    }
+}
+
+#[inline(always)]
+pub fn write_mtvec(fun: fn()) {
+    unsafe {
+        asm!(
             "csrw mtvec, {0}",
             in(reg) fun
         )
@@ -428,7 +566,7 @@ pub fn read_scause() -> Cause {
 
     let cause = scause as i64;
     match cause.signum() {
-        1 => Cause::Exception(Exception::from(cause as u8)),
+        0 | 1 => Cause::Exception(Exception::from(cause as u8)),
         -1 => Cause::Interrupt(Interrupt::from(cause as u8)),
         _ => unreachable!(),
     }
@@ -501,6 +639,12 @@ impl fmt::Display for Mideleg {
             "mideleg ::: ssi: {:b}, sti: {:b}, mti: {:b}, msi: {:b}",
             self.ssi, self.sti, self.mti, self.msi
         )
+    }
+}
+
+impl fmt::Display for Medeleg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "medeleg ::: uecall: {:b}", self.uecall)
     }
 }
 

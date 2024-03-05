@@ -9,14 +9,24 @@ mod asm;
 
 extern crate alloc;
 
-use core::arch::asm;
-use core::marker::FnPtr;
-use hal_core::page::{EntryFlags, Page, PageTable, Vaddr};
-use hal_riscv::cpu::{Mideleg, Mstatus, Satp, Sstatus};
+use ::core::arch::asm;
+use ::core::marker::FnPtr;
+use alloc::boxed::Box;
+use alloc::vec::{self, Vec};
+use core::ops::Add;
+use core::ptr::{self, addr_of};
+use elf::endian::LittleEndian;
+use elf::section::SectionHeader;
+use elf::ElfBytes;
+use hal_core::page::{EntryFlags, Frame, Page, PageTable, Vaddr};
+use hal_riscv::cpu::{self, Medeleg, Mideleg, Mstatus, Satp, Sstatus};
 use pathos::alloc::init_allocator;
+use pathos::debug::dump_supervisor_registers;
+use pathos::ecall::{ecall, Ecall};
 use pathos::{
-    interrupts, page, ALLOC_SIZE, ALLOC_START, BSS_END, BSS_START, DATA_END, DATA_START, HEAP_SIZE,
-    HEAP_START, KERNEL_STACK_END, KERNEL_STACK_START, RODATA_END, RODATA_START, TEXT_END,
+    ecall, init_scheduler, interrupts, nop_loop, page, serial_print, Scheduler, Task, ALLOC_SIZE,
+    ALLOC_START, APP_CODE, BSS_END, BSS_START, DATA_END, DATA_START, HEAP_SIZE, HEAP_START,
+    KERNEL_STACK_END, KERNEL_STACK_START, RODATA_END, RODATA_START, SCHEDULER, TEXT_END,
     TEXT_START,
 };
 use pathos::{serial_debug, serial_info, serial_println};
@@ -28,26 +38,38 @@ pub fn kinit() {
     serial_println!("{}", LOGO);
 
     let mideleg = Mideleg {
-        sti: 1,
         ..Default::default()
     };
 
+    // let medeleg = Medeleg { uecall: 1 };
     let mstatus = Mstatus {
         mpp: 1,
+        fs: 1,
         ..Default::default()
     };
 
     hal_riscv::cpu::write_mideleg(mideleg.clone());
-    crate::serial_debug!("[WRITE] {}", mideleg);
+    // crate::serial_debug!("[WRITE] {}", mideleg);
+
+    // hal_riscv::cpu::write_medeleg(medeleg.clone());
+    // crate::serial_debug!("[WRITE] {}", medeleg);
 
     hal_riscv::cpu::write_mstatus(mstatus.clone());
-    crate::serial_debug!("[WRITE] {}", mstatus);
+    // crate::serial_debug!("[WRITE] {}", mstatus);
 
     hal_riscv::cpu::write_mepc((main as fn()).addr());
-    crate::serial_debug!("[WRITE] mepc <main> ::: {:?}", (main as fn()).addr());
+    // crate::serial_debug!("[WRITE] mepc <main> ::: {:?}", (main as fn()).addr());
+
+    init_scheduler([
+        Task::new(Vaddr::new(0x20_0000_0000), 0),
+        Task::new(Vaddr::new(0x20_0000_0000), 1),
+        Task::new(Vaddr::new(0x20_0000_0000), 2),
+    ]);
+
+    serial_debug!("Initialized scheduler");
 
     interrupts::init_m_mode_ivt();
-    serial_debug!("Initialized M-mode interrupt vector table");
+    serial_debug!("Initialized machine mode interrupt vector table");
 
     unsafe { asm!("mret") }
 }
@@ -59,34 +81,72 @@ pub fn main() {
 
     // Identity map kernel code and data before switching to Sv39 paging
     let root = page::allocate_root();
-    unsafe { init_page_tables(root) }
 
     unsafe {
+        init_page_tables(root);
+
         // Now perform sanity check by trying to translate each section's start
-        // virtual address to a physical address.
-        let vaddr = Vaddr::new(TEXT_START as u64);
-        if page::translate_vaddr(root, vaddr).is_none() {
-            panic!("0x{:x} cannot be translated", vaddr.inner());
-        }
-
-        let vaddr = Vaddr::new(DATA_START as u64);
-        if page::translate_vaddr(root, vaddr).is_none() {
-            panic!("0x{:x} cannot be translated", vaddr.inner());
-        }
-
-        let vaddr = Vaddr::new(BSS_START as u64);
-        if page::translate_vaddr(root, vaddr).is_none() {
-            panic!("0x{:x} cannot be translated", vaddr.inner());
-        }
-
-        let vaddr = Vaddr::new(KERNEL_STACK_START as u64);
-        if page::translate_vaddr(root, vaddr).is_none() {
-            panic!("0x{:x} cannot be translated", vaddr.inner());
+        // and end virtual addresses to a physical address.
+        for vaddr in [
+            TEXT_START,
+            TEXT_END,
+            RODATA_START,
+            RODATA_END,
+            DATA_START,
+            DATA_END,
+            BSS_START,
+            BSS_END,
+            KERNEL_STACK_START,
+            KERNEL_STACK_END,
+            // HEAP_START,
+            // HEAP_START + HEAP_SIZE,
+            // ALLOC_START,
+            // ALLOC_START + ALLOC_SIZE,
+        ] {
+            let vaddr = Vaddr::new(vaddr as u64);
+            if page::translate_vaddr(root, vaddr).is_none() {
+                panic!("0x{:x} cannot be translated", vaddr.inner());
+            }
         }
 
         // TODO: Check why not every address translation in HEAP and ALLOCATE
         // sections works.
     }
+
+    // serial_debug!("Sanity check passed");
+
+    let file = ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
+
+    let text_section: SectionHeader = file
+        .section_header_by_name(".text")
+        .expect("Failed to find .text section")
+        .expect("Failed to parse .text section");
+
+    let data = file
+        .section_data(&text_section)
+        .expect("Failed to read .text section");
+
+    // Put data somewhere in the heap
+    let data = Vec::from(data.0).leak();
+    serial_debug!("Copied user program to address: {:#x?}", data.as_ptr());
+
+    let vstart = 0x20_0000_0000;
+    let pstart = data.as_ptr() as usize;
+
+    page::map_range(root, vstart, pstart, 1024 * 1024, EntryFlags::RWXU);
+    page::map(
+        root,
+        Page::containing_address(0x10_0000_0000),
+        Frame::containing_address(0x10000000),
+        EntryFlags::RWU,
+    );
+    unsafe { asm!("sfence.vma zero, zero") }
+
+    serial_debug!(
+        "Mapped user space memory: {:#x?} - {:#x?}",
+        vstart,
+        vstart + 4096 * 32
+    );
 
     // Create satp entry and enable Sv39 paging
     let satp = Satp::new(8, root as *mut PageTable as usize);
@@ -99,22 +159,33 @@ pub fn main() {
     interrupts::init_s_mode_ivt();
     serial_debug!("Initialized S-mode interrupt vector table");
 
-    let sstatus = hal_riscv::cpu::read_sstatus();
-    let sstatus = Sstatus { sie: 1, ..sstatus };
-    hal_riscv::cpu::set_sstatus(sstatus);
+    let sstatus = Sstatus {
+        spp: 0,
+        ..Default::default()
+    };
 
-    loop {}
+    hal_riscv::cpu::set_sstatus(sstatus);
+    ecall(Ecall::SModeFinishBootstrap);
+
+    loop {
+        serial_debug!("Loop stack pointer: {:x?}", cpu::read_sp());
+        unsafe { asm!("wfi") }
+    }
 }
 
 unsafe fn init_page_tables(root: &mut PageTable) {
-    page::id_map_range(root, TEXT_START, TEXT_END, EntryFlags::RX);
+    // I needed to set .text and .rodata to X because otherwise I
+    // get store page faults on AMO instructions in the kernel
+    // (which probably belong to mutexes or spinlocks).
+
+    page::id_map_range(root, TEXT_START, TEXT_END, EntryFlags::RWX);
     serial_debug!(
         "Identity mapped kernel .text: 0x{:x} - 0x{:x}",
         TEXT_START,
         TEXT_END
     );
 
-    page::id_map_range(root, RODATA_START, RODATA_END, EntryFlags::RX);
+    page::id_map_range(root, RODATA_START, RODATA_END, EntryFlags::RWX);
     serial_debug!(
         "Identity mapped kernel .rodata: 0x{:x} - 0x{:x}",
         RODATA_START,
