@@ -2,7 +2,11 @@ validate-target:
     rustc --print cfg --target riscv-pathos.json
 
 build:
-    PATHOS_TOOLCHAIN={{justfile_directory()}}/../path0 cargo build
+    PATHOS_TOOLCHAIN={{justfile_directory()}}/../path0 cargo build --release
 
 dump:
     riscv64-linux-objdump -D target/riscv-pathos/debug/usercode -j .text
+
+readelf:
+    # riscv64-linux-readelf -a target/riscv-pathos/release/usercode
+    riscv64-linux-readelf -l /home/jlkiri/.local/bin/riscv64-linux-readelf
