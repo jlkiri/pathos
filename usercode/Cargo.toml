@@ -7,10 +7,10 @@ edition = "2021"
 
 [dependencies]
 
-# [[bin]]
-# name = "rt"
-# path = "src/rt/bin/main.rs"
-
-
 [profile.release]
 strip = "debuginfo"
+
+[[bin]]
+name = "usercode"
+harness = false
+test = false

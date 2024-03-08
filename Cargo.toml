@@ -1,5 +1,6 @@
 [workspace]
-members = ["allocator", "hal-core", "hal-riscv", "qemu"]
+members = ["allocator", "hal-core", "hal-riscv"]
+exclude = ["runner", "usercode"]
 resolver = "2"
 
 [package]
@@ -28,6 +29,3 @@ once_cell = { version = "1.19.0", features = [
     "alloc",
     "race",
 ], default-features = false }
-wasmtime = { git = "https://github.com/theseus-os/wasmtime" }
-
-# wat = "1.201.0"

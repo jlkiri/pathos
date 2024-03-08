@@ -4,8 +4,8 @@
 use core::panic::PanicInfo;
 
 #[no_mangle]
-fn main() {
-    // println!("Hello, world!");
+fn main() -> u32 {
+    1 // Must return a value
 }
 
 #[panic_handler]
