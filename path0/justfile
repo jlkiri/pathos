@@ -1,0 +1,2 @@
+build:
+    riscv64-linux-as  -march=rv64gc -mabi=lp64d -o path0.o -c path0.s

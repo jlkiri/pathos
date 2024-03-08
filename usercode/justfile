@@ -1,0 +1,8 @@
+validate-target:
+    rustc --print cfg --target riscv-pathos.json
+
+build:
+    PATHOS_TOOLCHAIN={{justfile_directory()}}/../path0 cargo build
+
+dump:
+    riscv64-linux-objdump -D target/riscv-pathos/debug/usercode -j .text

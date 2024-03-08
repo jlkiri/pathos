@@ -17,5 +17,10 @@
   "supported-sanitizers": [
     "kernel-address"
   ],
-  "target-pointer-width": "64"
+  "target-pointer-width": "64",
+  "pre-link-args": {
+    "gnu-lld": [
+      "/home/jlkiri/dev/pathos/path0/path0.o"
+    ]
+  }
 }
