@@ -2,7 +2,7 @@ extern crate alloc;
 
 use crate::debug::{dump_machine_registers, dump_supervisor_registers};
 use crate::ecall::{self, ecall, Ecall};
-use crate::serial_debug;
+use crate::{nop_loop, serial_debug};
 use core::marker::FnPtr;
 
 use core::arch::asm;
@@ -36,7 +36,7 @@ extern "riscv-interrupt-m" fn handle_mti() {
     crate::serial_info!("Machine timer interrupt");
 
     let mut mtime = hal_riscv::timer::read_mtime();
-    mtime += 16_000_000;
+    mtime += 40_000_000;
     hal_riscv::timer::write_mtimecmp(mtime);
 
     let mip = hal_riscv::cpu::read_mip();
@@ -61,23 +61,20 @@ fn dispatch_machine_exception() {
             let ecall = ecall::read_ecall();
 
             crate::serial_info!("S-mode ECALL ::: {:?}", ecall);
-            dump_machine_registers();
 
             match ecall {
                 Ecall::SModeFinishBootstrap => handle_smode_finish_bootstrap(),
                 Ecall::ClearPendingInterrupt(cause) => handle_clear_pending_interrupt(cause),
                 Ecall::Exit(code) => {
-                    let mstatus = hal_riscv::cpu::read_mstatus();
-                    let mstatus = Mstatus { mpp: 1, ..mstatus };
-                    hal_riscv::cpu::write_mstatus(mstatus.clone());
-                    hal_riscv::cpu::write_mepc_next();
                     crate::serial_info!("Program exited with code: {}", code);
+                    hal_riscv::cpu::write_mepc((nop_loop as fn()).addr());
                 }
             }
 
             unsafe { asm!("mret", clobber_abi("system")) }
         }
         _ => {
+            dump_machine_registers();
             panic!("Unimplemented M-mode exception ::: {:?}", mcause)
         }
     }

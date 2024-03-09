@@ -18,9 +18,9 @@ use hal_core::page::{EntryFlags, Page, PageTable, Vaddr};
 use hal_riscv::cpu::{Mideleg, Mstatus, Satp, Sstatus};
 use pathos::alloc::init_allocator;
 use pathos::{
-    interrupts, page, ALLOC_SIZE, ALLOC_START, BSS_END, BSS_START, DATA_END, DATA_START, HEAP_SIZE,
-    HEAP_START, KERNEL_STACK_END, KERNEL_STACK_START, RODATA_END, RODATA_START, TEXT_END,
-    TEXT_START,
+    interrupts, nop_loop, page, ALLOC_SIZE, ALLOC_START, BSS_END, BSS_START, DATA_END, DATA_START,
+    HEAP_SIZE, HEAP_START, KERNEL_STACK_END, KERNEL_STACK_START, RODATA_END, RODATA_START,
+    TEXT_END, TEXT_START,
 };
 use pathos::{serial_debug, serial_info, serial_println};
 
@@ -99,14 +99,14 @@ pub fn main() {
         // sections works.
     }
 
-    page::id_map_range(
-        root,
-        0x400000000000,
-        0x400000000000 + 0x400000,
-        EntryFlags::RWX,
-    );
+    // page::id_map_range(
+    //     root,
+    //     0x400000000000,
+    //     0x400000000000 + 0x400000,
+    //     EntryFlags::RWX,
+    // );
 
-    serial_debug!("Identity mapped ELF .text section");
+    // serial_debug!("Identity mapped ELF .text section");
 
     // Create satp entry and enable Sv39 paging
     let satp = Satp::new(8, root as *mut PageTable as usize);
@@ -115,6 +115,13 @@ pub fn main() {
     hal_riscv::cpu::write_satp(satp.clone());
 
     serial_info!("Enabled Sv39 paging");
+
+    interrupts::init_s_mode_ivt();
+    serial_debug!("Initialized S-mode interrupt vector table");
+
+    let sstatus = hal_riscv::cpu::read_sstatus();
+    let sstatus = Sstatus { sie: 1, ..sstatus };
+    hal_riscv::cpu::set_sstatus(sstatus);
 
     {
         let file =
@@ -130,37 +137,11 @@ pub fn main() {
 
         serial_debug!("Read .text section: {:x?}", data);
 
-        unsafe {
-            core::ptr::copy_nonoverlapping(
-                data.0.as_ptr(),
-                Vaddr::new(0x400000000000).inner() as *mut u8,
-                data.0.len(),
-            );
-        }
-
-        serial_debug!("Copied .text section to 0x400000000000");
-
-        for byte in 0x400000000000u64..0x400000000000 + 0x400000 {
-            let byte = unsafe { core::ptr::read_volatile(byte as *const u8) };
-            serial_debug!("Byte at 0x{:x} ::: 0x{:x}", byte, byte);
-        }
-
-        let program = unsafe {
-            core::mem::transmute::<_, fn() -> u32>(Vaddr::new(0x400000000000).inner() as *mut u8)
-        };
-
-        let ret = program();
-        serial_debug!("Program returned: {}", ret);
+        let program: fn() = unsafe { core::mem::transmute(data.0.as_ptr()) };
+        program();
     }
 
-    interrupts::init_s_mode_ivt();
-    serial_debug!("Initialized S-mode interrupt vector table");
-
-    let sstatus = hal_riscv::cpu::read_sstatus();
-    let sstatus = Sstatus { sie: 1, ..sstatus };
-    hal_riscv::cpu::set_sstatus(sstatus);
-
-    loop {}
+    nop_loop()
 }
 
 unsafe fn init_page_tables(root: &mut PageTable) {

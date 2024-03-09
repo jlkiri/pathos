@@ -49,3 +49,8 @@ fn panic(info: &PanicInfo) -> ! {
 
     loop {}
 }
+
+pub fn nop_loop() {
+    crate::serial_debug!("Entering NOP loop");
+    loop {}
+}
