@@ -1,5 +1,3 @@
-use core::ops::Add;
-
 /// Sv39 page table
 #[repr(align(4096))]
 pub struct PageTable {

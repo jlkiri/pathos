@@ -5,7 +5,7 @@ use hal_core::page::{EntryFlags, Frame, Paddr, Page, PageRange, PageTable, PageT
 
 use crate::serial_debug;
 
-fn map(root: &mut PageTable, page: Page, frame: Frame, flags: EntryFlags) {
+fn map_to_frame(root: &mut PageTable, page: Page, frame: Frame, flags: EntryFlags) {
     let vpn = page.addr().indexed_vpn();
     let mut table = root;
 
@@ -56,8 +56,12 @@ pub fn allocate_root() -> &'static mut PageTable {
 
 pub fn id_map(root: &mut PageTable, page: Page, flags: EntryFlags) {
     let frame = Frame::containing_address(page.addr().inner());
-    map(root, page, frame, flags);
+    map_to_frame(root, page, frame, flags);
 }
+
+// pub fn map(root: &mut PageTable, page: Page, frame: Frame, flags: EntryFlags) {
+//     map(root, page, frame, flags);
+// }
 
 pub fn id_map_range(root: &mut PageTable, start: usize, end: usize, flags: EntryFlags) {
     let start = Vaddr::new(start as u64);

@@ -99,6 +99,15 @@ pub fn main() {
         // sections works.
     }
 
+    page::id_map_range(
+        root,
+        0x400000000000,
+        0x400000000000 + 0x400000,
+        EntryFlags::RWX,
+    );
+
+    serial_debug!("Identity mapped ELF .text section");
+
     // Create satp entry and enable Sv39 paging
     let satp = Satp::new(8, root as *mut PageTable as usize);
 
@@ -106,13 +115,6 @@ pub fn main() {
     hal_riscv::cpu::write_satp(satp.clone());
 
     serial_info!("Enabled Sv39 paging");
-
-    interrupts::init_s_mode_ivt();
-    serial_debug!("Initialized S-mode interrupt vector table");
-
-    let sstatus = hal_riscv::cpu::read_sstatus();
-    let sstatus = Sstatus { sie: 1, ..sstatus };
-    hal_riscv::cpu::set_sstatus(sstatus);
 
     {
         let file =
@@ -128,10 +130,35 @@ pub fn main() {
 
         serial_debug!("Read .text section: {:x?}", data);
 
-        let program = unsafe { core::mem::transmute::<_, fn() -> u32>(data.0.as_ptr()) };
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                data.0.as_ptr(),
+                Vaddr::new(0x400000000000).inner() as *mut u8,
+                data.0.len(),
+            );
+        }
+
+        serial_debug!("Copied .text section to 0x400000000000");
+
+        for byte in 0x400000000000u64..0x400000000000 + 0x400000 {
+            let byte = unsafe { core::ptr::read_volatile(byte as *const u8) };
+            serial_debug!("Byte at 0x{:x} ::: 0x{:x}", byte, byte);
+        }
+
+        let program = unsafe {
+            core::mem::transmute::<_, fn() -> u32>(Vaddr::new(0x400000000000).inner() as *mut u8)
+        };
+
         let ret = program();
-        serial_info!("Program returned: {}", ret);
+        serial_debug!("Program returned: {}", ret);
     }
+
+    interrupts::init_s_mode_ivt();
+    serial_debug!("Initialized S-mode interrupt vector table");
+
+    let sstatus = hal_riscv::cpu::read_sstatus();
+    let sstatus = Sstatus { sie: 1, ..sstatus };
+    hal_riscv::cpu::set_sstatus(sstatus);
 
     loop {}
 }
