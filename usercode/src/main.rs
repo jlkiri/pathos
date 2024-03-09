@@ -10,6 +10,6 @@ fn main() -> u32 {
 
 #[panic_handler]
 #[no_mangle]
-fn panic(info: &PanicInfo) -> ! {
+fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }

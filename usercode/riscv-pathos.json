@@ -21,7 +21,10 @@
   "pre-link-args": {
     "gnu-lld": [
       "/home/jlkiri/dev/pathos/path0/path0.o",
-      "-T/home/jlkiri/dev/pathos/path0/default.ld"
+      "-T/home/jlkiri/dev/pathos/path0/default.ld",
+      "--no-dynamic-linker",
+      "--nostdlib",
+      "--pie"
     ]
   }
 }
