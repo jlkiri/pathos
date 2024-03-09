@@ -67,6 +67,10 @@ fn dispatch_machine_exception() {
                 Ecall::SModeFinishBootstrap => handle_smode_finish_bootstrap(),
                 Ecall::ClearPendingInterrupt(cause) => handle_clear_pending_interrupt(cause),
                 Ecall::Exit(code) => {
+                    let mstatus = hal_riscv::cpu::read_mstatus();
+                    let mstatus = Mstatus { mpp: 1, ..mstatus };
+                    hal_riscv::cpu::write_mstatus(mstatus.clone());
+                    hal_riscv::cpu::write_mepc_next();
                     crate::serial_info!("Program exited with code: {}", code);
                 }
             }

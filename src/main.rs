@@ -58,6 +58,10 @@ pub fn kinit() {
 
 #[no_mangle]
 pub fn main() {
+    // Print address of APP_CODE
+    let app_code = APP_CODE.as_ptr();
+    serial_info!("APP_CODE: 0x{:x}", app_code as usize);
+
     init_allocator();
     serial_debug!("Initialized global heap allocator");
 
@@ -110,23 +114,24 @@ pub fn main() {
     let sstatus = Sstatus { sie: 1, ..sstatus };
     hal_riscv::cpu::set_sstatus(sstatus);
 
-    // {
-    //     let file =
-    //         ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
-    //     let text_section: SectionHeader = file
-    //         .section_header_by_name(".text")
-    //         .expect("Failed to find .text section")
-    //         .expect("Failed to parse .text section");
+    {
+        let file =
+            ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
+        let text_section: SectionHeader = file
+            .section_header_by_name(".text")
+            .expect("Failed to find .text section")
+            .expect("Failed to parse .text section");
 
-    //     let data = file
-    //         .section_data(&text_section)
-    //         .expect("Failed to read .text section");
+        let data = file
+            .section_data(&text_section)
+            .expect("Failed to read .text section");
 
-    //     serial_debug!("Read .text section: {:x?}", data);
+        serial_debug!("Read .text section: {:x?}", data);
 
-    //     let program = unsafe { core::mem::transmute::<_, fn() -> u32>(data.0.as_ptr()) };
-    //     program();
-    // }
+        let program = unsafe { core::mem::transmute::<_, fn() -> u32>(data.0.as_ptr()) };
+        let ret = program();
+        serial_info!("Program returned: {}", ret);
+    }
 
     loop {}
 }
