@@ -23,7 +23,6 @@ use pathos::{
     TEXT_START,
 };
 use pathos::{serial_debug, serial_info, serial_println};
-// use wasmi::*;
 
 const LOGO: &str = include_str!("logo.txt");
 const APP_CODE: &[u8] = include_bytes!("app");
@@ -104,17 +103,20 @@ pub fn main() {
 
     serial_info!("Enabled Sv39 paging");
 
-    let file = ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
-    let text_section: SectionHeader = file
-        .section_header_by_name(".text")
-        .expect("Failed to find .text section")
-        .expect("Failed to parse .text section");
+    {
+        let file =
+            ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
+        let text_section: SectionHeader = file
+            .section_header_by_name(".text")
+            .expect("Failed to find .text section")
+            .expect("Failed to parse .text section");
 
-    let data = file
-        .section_data(&text_section)
-        .expect("Failed to read .text section");
+        let data = file
+            .section_data(&text_section)
+            .expect("Failed to read .text section");
 
-    serial_debug!("Read .text section: {:x?}", data);
+        serial_debug!("Read .text section: {:x?}", data);
+    }
 
     interrupts::init_s_mode_ivt();
     serial_debug!("Initialized S-mode interrupt vector table");

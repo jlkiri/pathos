@@ -19,7 +19,6 @@ name = "pathos"
 harness = false
 
 [dependencies]
-lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
 hal-riscv = { path = "hal-riscv" }
 hal-core = { path = "hal-core" }
 allocator = { path = "allocator" }

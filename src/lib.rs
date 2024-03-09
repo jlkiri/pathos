@@ -33,23 +33,6 @@ extern "C" {
     pub static RODATA_END: usize;
 }
 
-// #[cfg(test)]
-// #[panic_handler]
-// #[no_mangle]
-// pub fn panic(info: &PanicInfo) -> ! {
-//     use debug::{dump_machine_registers, dump_supervisor_registers};
-
-//     crate::serial_error!(" ");
-//     crate::serial_error!("*** KERNEL PANIC ***");
-//     crate::serial_error!(" ");
-//     crate::serial_error!("{}", info);
-
-//     dump_machine_registers();
-//     dump_supervisor_registers();
-
-//     loop {}
-// }
-
 #[cfg(all(not(test), target_os = "none"))]
 #[panic_handler]
 #[no_mangle]

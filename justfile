@@ -18,7 +18,7 @@ gdb:
     @ gdb-multiarch --init-command cmds.gdb
 
 build:
-    @ cargo build -q --release
+    @ cargo build --release
 
 clean:
     @ cargo clean

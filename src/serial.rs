@@ -27,60 +27,51 @@ impl fmt::Write for Serial {
 pub fn _info(args: ::core::fmt::Arguments) {
     use core::fmt::Write;
 
-    SERIAL
-        .lock()
+    let mut serial = SERIAL.lock();
+
+    serial
         .write_fmt(format_args!("{} ", PATHOS.blue()))
         .expect("Printing to serial failed");
 
-    SERIAL
-        .lock()
+    serial
         .write_fmt(format_args!("[{}] ", INFO.bright_green()))
         .expect("Printing to serial failed");
 
-    SERIAL
-        .lock()
-        .write_fmt(args)
-        .expect("Printing to serial failed");
+    serial.write_fmt(args).expect("Printing to serial failed");
 }
 
 #[doc(hidden)]
 pub fn _error(args: ::core::fmt::Arguments) {
     use core::fmt::Write;
 
-    SERIAL
-        .lock()
+    let mut serial = SERIAL.lock();
+
+    serial
         .write_fmt(format_args!("{} ", PATHOS.blue()))
         .expect("Printing to serial failed");
 
-    SERIAL
-        .lock()
+    serial
         .write_fmt(format_args!("[{}] ", ERROR.bright_red()))
         .expect("Printing to serial failed");
 
-    SERIAL
-        .lock()
-        .write_fmt(args)
-        .expect("Printing to serial failed");
+    serial.write_fmt(args).expect("Printing to serial failed");
 }
 
 #[doc(hidden)]
 pub fn _debug(args: ::core::fmt::Arguments) {
     use core::fmt::Write;
 
-    SERIAL
-        .lock()
+    let mut serial = SERIAL.lock();
+
+    serial
         .write_fmt(format_args!("{} ", PATHOS.blue()))
         .expect("Printing to serial failed");
 
-    SERIAL
-        .lock()
+    serial
         .write_fmt(format_args!("[{}] ", DEBUG.bright_cyan()))
         .expect("Printing to serial failed");
 
-    SERIAL
-        .lock()
-        .write_fmt(args)
-        .expect("Printing to serial failed");
+    serial.write_fmt(args).expect("Printing to serial failed");
 }
 
 /// Prints to the host through the serial interface.
