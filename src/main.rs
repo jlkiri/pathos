@@ -103,6 +103,13 @@ pub fn main() {
 
     serial_info!("Enabled Sv39 paging");
 
+    interrupts::init_s_mode_ivt();
+    serial_debug!("Initialized S-mode interrupt vector table");
+
+    let sstatus = hal_riscv::cpu::read_sstatus();
+    let sstatus = Sstatus { sie: 1, ..sstatus };
+    hal_riscv::cpu::set_sstatus(sstatus);
+
     {
         let file =
             ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
@@ -116,14 +123,10 @@ pub fn main() {
             .expect("Failed to read .text section");
 
         serial_debug!("Read .text section: {:x?}", data);
+
+        let program = unsafe { core::mem::transmute::<_, fn() -> u32>(data.0.as_ptr()) };
+        program();
     }
-
-    interrupts::init_s_mode_ivt();
-    serial_debug!("Initialized S-mode interrupt vector table");
-
-    let sstatus = hal_riscv::cpu::read_sstatus();
-    let sstatus = Sstatus { sie: 1, ..sstatus };
-    hal_riscv::cpu::set_sstatus(sstatus);
 
     loop {}
 }

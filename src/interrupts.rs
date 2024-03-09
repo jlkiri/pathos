@@ -6,6 +6,7 @@ use crate::serial_debug;
 use core::marker::FnPtr;
 
 use core::arch::asm;
+use core::panic;
 use hal_riscv::cpu::{Exception, Interrupt, Mie, Mip, Mstatus};
 
 #[inline(always)]
@@ -65,14 +66,15 @@ fn dispatch_machine_exception() {
             match ecall {
                 Ecall::SModeFinishBootstrap => handle_smode_finish_bootstrap(),
                 Ecall::ClearPendingInterrupt(cause) => handle_clear_pending_interrupt(cause),
+                Ecall::Exit(code) => {
+                    crate::serial_info!("Program exited with code: {}", code);
+                }
             }
 
             unsafe { asm!("mret", clobber_abi("system")) }
         }
         _ => {
-            dump_machine_registers();
-            crate::serial_info!("Unimplemented M-mode exception ::: {:?}", mcause);
-            unsafe { asm!("mret", clobber_abi("system")) }
+            panic!("Unimplemented M-mode exception ::: {:?}", mcause)
         }
     }
 }
