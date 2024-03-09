@@ -54,29 +54,6 @@ pub fn allocate_root() -> &'static mut PageTable {
     unsafe { &mut *ptr }
 }
 
-fn map_range(
-    root: &mut PageTable,
-    start: usize,
-    end: usize,
-    alloc_start: usize,
-    alloc_size: usize,
-    flags: EntryFlags,
-) {
-    let start = Vaddr::new(start as u64);
-    let end = Vaddr::new(end as u64);
-    let range = PageRange::new(start, end);
-    let mut phys_start = alloc_start;
-    for page in range {
-        if phys_start >= alloc_start + alloc_size {
-            panic!("Out of physical memory for page table");
-        }
-
-        let frame = Frame::containing_address(phys_start as u64);
-        map(root, page, frame, flags.clone());
-        phys_start += 0x1000;
-    }
-}
-
 pub fn id_map(root: &mut PageTable, page: Page, flags: EntryFlags) {
     let frame = Frame::containing_address(page.addr().inner());
     map(root, page, frame, flags);
