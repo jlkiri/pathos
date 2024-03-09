@@ -6,9 +6,6 @@ use crate::serial_debug;
 use core::marker::FnPtr;
 
 use core::arch::asm;
-use elf::endian::LittleEndian;
-use elf::section::SectionHeader;
-use elf::ElfBytes;
 use hal_riscv::cpu::{Exception, Interrupt, Mie, Mip, Mstatus};
 
 #[inline(always)]
