@@ -1,18 +1,18 @@
 #[inline(always)]
 pub fn dump_machine_registers() {
-    let mip = hal_riscv::cpu::read_mip();
-    let mie = hal_riscv::cpu::read_mie();
-    let mcause = hal_riscv::cpu::read_mcause();
-    let mstatus = hal_riscv::cpu::read_mstatus();
-    let mtval = hal_riscv::cpu::read_mtval();
-    let mepc = hal_riscv::cpu::read_mepc();
+    // let mip = hal_riscv::cpu::read_mip();
+    // let mie = hal_riscv::cpu::read_mie();
+    // let mcause = hal_riscv::cpu::read_mcause();
+    // let mstatus = hal_riscv::cpu::read_mstatus();
+    // let mtval = hal_riscv::cpu::read_mtval();
+    // let mepc = hal_riscv::cpu::read_mepc();
 
-    crate::serial_debug!("{}", mstatus);
-    crate::serial_debug!("{}", mie);
-    crate::serial_debug!("{}", mip);
-    crate::serial_debug!("mepc ::: {:?}", mepc);
-    crate::serial_debug!("mtval ::: {:?}", mtval);
-    crate::serial_debug!("M-mode: {}", mcause);
+    // crate::serial_debug!("{}", mstatus);
+    // crate::serial_debug!("{}", mie);
+    // crate::serial_debug!("{}", mip);
+    // crate::serial_debug!("mepc ::: {:?}", mepc);
+    // crate::serial_debug!("mtval ::: {:?}", mtval);
+    // crate::serial_debug!("M-mode: {}", mcause);
 }
 
 #[inline(always)]
