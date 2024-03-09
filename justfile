@@ -1,7 +1,7 @@
 bin := "target/riscv64gc-unknown-none-elf/release/pathos"
 
 dump:
-    @ cargo objdump --release --bin pathos -- --disassemble \
+    @ cargo objdump -q --release --bin pathos -- --disassemble \
         --no-show-raw-insn -M no-aliases
 
 run:

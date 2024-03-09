@@ -11,6 +11,9 @@ extern crate alloc;
 
 use ::core::arch::asm;
 use ::core::marker::FnPtr;
+use elf::endian::LittleEndian;
+use elf::section::SectionHeader;
+use elf::ElfBytes;
 use hal_core::page::{EntryFlags, Page, PageTable, Vaddr};
 use hal_riscv::cpu::{Mideleg, Mstatus, Satp, Sstatus};
 use pathos::alloc::init_allocator;
@@ -23,6 +26,7 @@ use pathos::{serial_debug, serial_info, serial_println};
 // use wasmi::*;
 
 const LOGO: &str = include_str!("logo.txt");
+const APP_CODE: &[u8] = include_bytes!("app");
 
 #[no_mangle]
 pub fn kinit() {
@@ -60,29 +64,32 @@ pub fn main() {
 
     // Identity map kernel code and data before switching to Sv39 paging
     let root = page::allocate_root();
-    unsafe { init_page_tables(root) }
 
     unsafe {
+        init_page_tables(root);
+
         // Now perform sanity check by trying to translate each section's start
-        // virtual address to a physical address.
-        let vaddr = Vaddr::new(TEXT_START as u64);
-        if page::translate_vaddr(root, vaddr).is_none() {
-            panic!("0x{:x} cannot be translated", vaddr.inner());
-        }
-
-        let vaddr = Vaddr::new(DATA_START as u64);
-        if page::translate_vaddr(root, vaddr).is_none() {
-            panic!("0x{:x} cannot be translated", vaddr.inner());
-        }
-
-        let vaddr = Vaddr::new(BSS_START as u64);
-        if page::translate_vaddr(root, vaddr).is_none() {
-            panic!("0x{:x} cannot be translated", vaddr.inner());
-        }
-
-        let vaddr = Vaddr::new(KERNEL_STACK_START as u64);
-        if page::translate_vaddr(root, vaddr).is_none() {
-            panic!("0x{:x} cannot be translated", vaddr.inner());
+        // and end virtual addresses to a physical address.
+        for vaddr in [
+            TEXT_START,
+            TEXT_END,
+            RODATA_START,
+            RODATA_END,
+            DATA_START,
+            DATA_END,
+            BSS_START,
+            BSS_END,
+            KERNEL_STACK_START,
+            KERNEL_STACK_END,
+            // HEAP_START,
+            // HEAP_START + HEAP_SIZE,
+            // ALLOC_START,
+            // ALLOC_START + ALLOC_SIZE,
+        ] {
+            let vaddr = Vaddr::new(vaddr as u64);
+            if page::translate_vaddr(root, vaddr).is_none() {
+                panic!("0x{:x} cannot be translated", vaddr.inner());
+            }
         }
 
         // TODO: Check why not every address translation in HEAP and ALLOCATE
@@ -97,45 +104,24 @@ pub fn main() {
 
     serial_info!("Enabled Sv39 paging");
 
+    let file = ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
+    let text_section: SectionHeader = file
+        .section_header_by_name(".text")
+        .expect("Failed to find .text section")
+        .expect("Failed to parse .text section");
+
+    let data = file
+        .section_data(&text_section)
+        .expect("Failed to read .text section");
+
+    serial_debug!("Read .text section: {:x?}", data);
+
     interrupts::init_s_mode_ivt();
     serial_debug!("Initialized S-mode interrupt vector table");
 
     let sstatus = hal_riscv::cpu::read_sstatus();
     let sstatus = Sstatus { sie: 1, ..sstatus };
     hal_riscv::cpu::set_sstatus(sstatus);
-
-    // let engine = Engine::default();
-    // let wat = r#"
-    //     (module
-    //         (import "host" "hello" (func $host_hello (param i32)))
-    //         (func (export "hello")
-    //             (call $host_hello (i32.const 3))
-    //         )
-    //     )
-    // "#;
-
-    // let wasm = include_bytes!("../test.wasm").to_vec();
-    // let module = Module::new(&engine, &wasm[..]).expect("Failed to create module");
-    // type HostState = u32;
-    // let mut store = Store::new(&engine, 42);
-    // let host_hello = Func::wrap(&mut store, |caller: Caller<'_, HostState>, param: i32| {
-    //     // println!("Got {param} from WebAssembly");
-    //     // println!("My host state is: {}", caller.data());
-    // });
-    // let mut linker = <Linker<HostState>>::new(&engine);
-    // linker
-    //     .define("host", "hello", host_hello)
-    //     .expect("Failed to define host function");
-    // let instance = linker
-    //     .instantiate(&mut store, &module)
-    //     .expect("Failed to instantiate module")
-    //     .start(&mut store)
-    //     .expect("Failed to start module");
-    // let hello = instance
-    //     .get_typed_func::<(), ()>(&store, "hello")
-    //     .expect("Failed to get function");
-    // // And finally we can call the wasm!
-    // hello.call(&mut store, ()).expect("Failed to call function");
 
     loop {}
 }

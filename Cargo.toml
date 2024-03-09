@@ -29,3 +29,4 @@ once_cell = { version = "1.19.0", features = [
     "alloc",
     "race",
 ], default-features = false }
+elf = { version = "0.7.4", default-features = false }
