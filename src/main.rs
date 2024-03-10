@@ -11,6 +11,7 @@ extern crate alloc;
 
 use ::core::arch::asm;
 use ::core::marker::FnPtr;
+use core::ptr;
 use elf::endian::LittleEndian;
 use elf::section::SectionHeader;
 use elf::ElfBytes;
@@ -99,14 +100,8 @@ pub fn main() {
         // sections works.
     }
 
-    // page::id_map_range(
-    //     root,
-    //     0x400000000000,
-    //     0x400000000000 + 0x400000,
-    //     EntryFlags::RWX,
-    // );
-
-    // serial_debug!("Identity mapped ELF .text section");
+    page::map_alloc_range(root, 0x20_0000_0000, 0x20_0004_0000, EntryFlags::RWX);
+    serial_debug!("Mapped user space memory: 0x20_0000_0000 - 0x20_0004_0000");
 
     // Create satp entry and enable Sv39 paging
     let satp = Satp::new(8, root as *mut PageTable as usize);
@@ -124,11 +119,9 @@ pub fn main() {
     hal_riscv::cpu::set_sstatus(sstatus);
 
     {
-        let sp = hal_riscv::cpu::read_sp();
-        hal_riscv::cpu::write_sscratch(sp);
-
         let file =
             ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
+
         let text_section: SectionHeader = file
             .section_header_by_name(".text")
             .expect("Failed to find .text section")
@@ -138,13 +131,22 @@ pub fn main() {
             .section_data(&text_section)
             .expect("Failed to read .text section");
 
-        serial_debug!("Read .text section: {:x?}", data);
+        // Allocate enough virtual space for the program starting at 0x20_0000_0000,
+        // map the address range & mark it as executable. After that,
+        // load the program into the allocated memory.
 
-        let program: fn() = unsafe { core::mem::transmute(data.0.as_ptr()) };
+        unsafe {
+            ptr::copy_nonoverlapping(data.0.as_ptr(), 0x20_0000_0000 as *mut u8, data.0.len());
+            serial_debug!("Loaded program into 0x20_0000_0000");
+        }
+
+        let sp = hal_riscv::cpu::read_sp();
+        serial_debug!("Initial stack pointer: {:x?}", sp);
+
+        hal_riscv::cpu::write_sscratch(sp);
+
+        let program: fn() = unsafe { core::mem::transmute(0x20_0000_0000 as *mut u8) };
         program();
-
-        let sp = hal_riscv::cpu::read_sscratch();
-        hal_riscv::cpu::write_sp(sp);
     }
 
     nop_loop()

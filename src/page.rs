@@ -1,6 +1,8 @@
 extern crate alloc;
 
-use alloc::boxed::Box;
+use core::alloc::Layout;
+
+use alloc::{alloc::alloc_zeroed, boxed::Box};
 use hal_core::page::{EntryFlags, Frame, Paddr, Page, PageRange, PageTable, PageTableEntry, Vaddr};
 
 use crate::serial_debug;
@@ -59,9 +61,21 @@ pub fn id_map(root: &mut PageTable, page: Page, flags: EntryFlags) {
     map_to_frame(root, page, frame, flags);
 }
 
-// pub fn map(root: &mut PageTable, page: Page, frame: Frame, flags: EntryFlags) {
-//     map(root, page, frame, flags);
-// }
+pub fn map_alloc(root: &mut PageTable, page: Page, flags: EntryFlags) {
+    let layout = Layout::from_size_align(4096, 4096).expect("Invalid layout");
+    let frame = unsafe { alloc_zeroed(layout) };
+    map_to_frame(root, page, Frame::containing_address(frame as u64), flags);
+}
+
+pub fn map_alloc_range(root: &mut PageTable, start: usize, end: usize, flags: EntryFlags) {
+    let start = Vaddr::new(start as u64);
+    let end = Vaddr::new(end as u64);
+
+    let range = PageRange::new(start, end);
+    for page in range {
+        map_alloc(root, page, flags.clone());
+    }
+}
 
 pub fn id_map_range(root: &mut PageTable, start: usize, end: usize, flags: EntryFlags) {
     let start = Vaddr::new(start as u64);
@@ -69,6 +83,7 @@ pub fn id_map_range(root: &mut PageTable, start: usize, end: usize, flags: Entry
 
     let range = PageRange::new(start, end);
     for page in range {
+        // serial_debug!("Mapping page: 0x{:x?}", page.addr());
         id_map(root, page, flags.clone());
     }
 }
