@@ -135,21 +135,28 @@ pub fn main() {
         // map the address range & mark it as executable. After that,
         // load the program into the allocated memory.
 
+        let src = Vaddr::new(data.0.as_ptr() as u64);
+        let dst = Vaddr::new(0x20_0000_0000 as u64);
+
         unsafe {
-            ptr::copy_nonoverlapping(data.0.as_ptr(), 0x20_0000_0000 as *mut u8, data.0.len());
+            ptr::copy_nonoverlapping(
+                src.inner() as *const u8,
+                dst.inner() as *mut u8,
+                0x4_0000 - data.0.len(),
+            );
             serial_debug!("Loaded program into 0x20_0000_0000");
         }
 
         let sp = hal_riscv::cpu::read_sp();
-        serial_debug!("Initial stack pointer: {:x?}", sp);
-
         hal_riscv::cpu::write_sscratch(sp);
 
-        let program: fn() = unsafe { core::mem::transmute(0x20_0000_0000 as *mut u8) };
+        serial_debug!("Saved stack pointer to sscratch: {:x?}", sp);
+
+        let program: fn() = unsafe { core::mem::transmute(dst.inner() as *mut u8) };
         program();
     }
 
-    nop_loop()
+    // nop_loop()
 }
 
 unsafe fn init_page_tables(root: &mut PageTable) {

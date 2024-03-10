@@ -73,6 +73,7 @@ pub fn map_alloc_range(root: &mut PageTable, start: usize, end: usize, flags: En
 
     let range = PageRange::new(start, end);
     for page in range {
+        // serial_debug!("Mapping page: 0x{:x?}", page.addr());
         map_alloc(root, page, flags.clone());
     }
 }

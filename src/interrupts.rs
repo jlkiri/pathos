@@ -66,14 +66,11 @@ fn dispatch_machine_exception() {
                 Ecall::SModeFinishBootstrap => handle_smode_finish_bootstrap(),
                 Ecall::ClearPendingInterrupt(cause) => handle_clear_pending_interrupt(cause),
                 Ecall::Exit(code) => {
-                    crate::serial_info!("Program exited with code: {}", code);
-                    let after_sp = hal_riscv::cpu::read_sp();
-                    crate::serial_debug!("Final stack pointer: {:x?}", after_sp);
-
                     let sp = hal_riscv::cpu::read_sscratch();
                     hal_riscv::cpu::write_sp(sp);
 
                     crate::serial_info!("Restored stack pointer: {:x?}", sp);
+                    crate::serial_info!("Program exited with code: {}", code);
 
                     hal_riscv::cpu::write_mepc((nop_loop as fn()).addr());
                 }
