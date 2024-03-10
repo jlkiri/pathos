@@ -26,7 +26,6 @@ use pathos::{
 use pathos::{serial_debug, serial_info, serial_println};
 
 const LOGO: &str = include_str!("logo.txt");
-const APP_CODE: &[u8] = include_bytes!("app");
 
 #[no_mangle]
 pub fn kinit() {
@@ -60,8 +59,8 @@ pub fn kinit() {
 #[no_mangle]
 pub fn main() {
     // Print address of APP_CODE
-    let app_code = APP_CODE.as_ptr();
-    serial_info!("APP_CODE: 0x{:x}", app_code as usize);
+    // let app_code = APP_CODE.as_ptr();
+    // serial_info!("APP_CODE: 0x{:x}", app_code as usize);
 
     init_allocator();
     serial_debug!("Initialized global heap allocator");
@@ -118,45 +117,7 @@ pub fn main() {
     let sstatus = Sstatus { sie: 1, ..sstatus };
     hal_riscv::cpu::set_sstatus(sstatus);
 
-    {
-        let file =
-            ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
-
-        let text_section: SectionHeader = file
-            .section_header_by_name(".text")
-            .expect("Failed to find .text section")
-            .expect("Failed to parse .text section");
-
-        let data = file
-            .section_data(&text_section)
-            .expect("Failed to read .text section");
-
-        // Allocate enough virtual space for the program starting at 0x20_0000_0000,
-        // map the address range & mark it as executable. After that,
-        // load the program into the allocated memory.
-
-        let src = Vaddr::new(data.0.as_ptr() as u64);
-        let dst = Vaddr::new(0x20_0000_0000 as u64);
-
-        unsafe {
-            ptr::copy_nonoverlapping(
-                src.inner() as *const u8,
-                dst.inner() as *mut u8,
-                0x4_0000 - data.0.len(),
-            );
-            serial_debug!("Loaded program into 0x20_0000_0000");
-        }
-
-        let sp = hal_riscv::cpu::read_sp();
-        hal_riscv::cpu::write_sscratch(sp);
-
-        serial_debug!("Saved stack pointer to sscratch: {:x?}", sp);
-
-        let program: fn() = unsafe { core::mem::transmute(dst.inner() as *mut u8) };
-        program();
-    }
-
-    // nop_loop()
+    nop_loop()
 }
 
 unsafe fn init_page_tables(root: &mut PageTable) {

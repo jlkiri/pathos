@@ -2,11 +2,15 @@ extern crate alloc;
 
 use crate::debug::{dump_machine_registers, dump_supervisor_registers};
 use crate::ecall::{self, ecall, Ecall};
-use crate::{nop_loop, serial_debug, serial_info};
+use crate::{nop_loop, serial_debug, serial_info, APP_CODE};
 use core::marker::FnPtr;
 
 use core::arch::asm;
-use core::panic;
+use core::{panic, ptr};
+use elf::endian::LittleEndian;
+use elf::section::SectionHeader;
+use elf::ElfBytes;
+use hal_core::page::Vaddr;
 use hal_riscv::cpu::{Exception, Interrupt, Mie, Mip, Mstatus};
 
 #[inline(always)]
@@ -30,13 +34,57 @@ extern "riscv-interrupt-s" fn handle_sti() {
     ecall(Ecall::ClearPendingInterrupt(
         Interrupt::SupervisorTimer as u8,
     ));
+
+    {
+        let file =
+            ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
+
+        let text_section: SectionHeader = file
+            .section_header_by_name(".text")
+            .expect("Failed to find .text section")
+            .expect("Failed to parse .text section");
+
+        let data = file
+            .section_data(&text_section)
+            .expect("Failed to read .text section");
+
+        // Allocate enough virtual space for the program starting at 0x20_0000_0000,
+        // map the address range & mark it as executable. After that,
+        // load the program into the allocated memory.
+
+        let src = Vaddr::new(data.0.as_ptr() as u64);
+        let dst = Vaddr::new(0x20_0000_0000 as u64);
+
+        serial_debug!(
+            "src: 0x{:x?}, dst: 0x{:x?}",
+            src.inner() as *const u8,
+            dst.inner() as *mut u8
+        );
+
+        unsafe {
+            ptr::copy_nonoverlapping(
+                src.inner() as *const u8,
+                dst.inner() as *mut u8,
+                data.0.len(),
+            );
+            serial_debug!("Loaded program into 0x20_0000_0000");
+        }
+
+        let sp = hal_riscv::cpu::read_sp();
+        hal_riscv::cpu::write_sscratch(sp);
+
+        serial_debug!("Saved stack pointer to sscratch: {}", sp);
+
+        let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
+        func();
+    }
 }
 
 extern "riscv-interrupt-m" fn handle_mti() {
     crate::serial_info!("Machine timer interrupt");
 
     let mut mtime = hal_riscv::timer::read_mtime();
-    mtime += 10_000_000;
+    mtime += 20_000_000;
     hal_riscv::timer::write_mtimecmp(mtime);
 
     let mip = hal_riscv::cpu::read_mip();

@@ -183,7 +183,7 @@ pub fn write_satp(satp: Satp) {
 }
 
 #[inline(always)]
-pub fn write_sscratch(addr: *const u8) {
+pub fn write_sscratch(addr: usize) {
     unsafe {
         asm!(
             "csrw sscratch, {}",
@@ -216,8 +216,8 @@ pub fn write_sp(addr: *const u8) {
 }
 
 #[inline(always)]
-pub fn read_sp() -> *const u8 {
-    let sp: *const u8;
+pub fn read_sp() -> usize {
+    let sp: usize;
     unsafe {
         asm!(
             "mv {}, sp",

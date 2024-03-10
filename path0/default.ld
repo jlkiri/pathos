@@ -3,7 +3,7 @@ OUTPUT_ARCH("riscv")
 ENTRY(_start)
 
 MEMORY {
-    ram (wxa) : ORIGIN = 0x2000000000, LENGTH = 4M
+    ram (wxa) : ORIGIN = 0x2000000000, LENGTH = 512K
 }
 
 SECTIONS {
@@ -35,11 +35,6 @@ SECTIONS {
     PROVIDE(_memory_end = ORIGIN(ram) + LENGTH(ram));
 
     PROVIDE(_stack_start = _bss_end);
-    PROVIDE(_stack_end = _stack_start + 1M);
-
-    . = _stack_end;
-    . = ALIGN(4096);
-    
-    PROVIDE(_heap_start = .);
-    PROVIDE(_heap_size = 2M);
+    _stack_start = ALIGN(8);
+    PROVIDE(_stack_end = _stack_start + 4096);
 }

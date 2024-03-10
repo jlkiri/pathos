@@ -33,6 +33,8 @@ extern "C" {
     pub static RODATA_END: usize;
 }
 
+pub const APP_CODE: &[u8] = include_bytes!("app");
+
 #[cfg(all(not(test), target_os = "none"))]
 #[panic_handler]
 #[no_mangle]
