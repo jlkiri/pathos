@@ -70,13 +70,13 @@ extern "riscv-interrupt-s" fn handle_sti() {
             // serial_debug!("Loaded program into 0x20_0000_0000");
         }
 
-        // let sp = hal_riscv::cpu::read_sp();
-        // hal_riscv::cpu::write_sscratch(sp);
+        let sp = hal_riscv::cpu::read_sp();
+        hal_riscv::cpu::write_sscratch(sp);
 
-        // serial_debug!("Saved stack pointer to sscratch: {}", sp);
+        serial_debug!("Saved stack pointer to sscratch: {}", sp);
 
-        // let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
-        // func();
+        let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
+        func();
     }
 }
 
