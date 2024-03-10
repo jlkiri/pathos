@@ -124,6 +124,9 @@ pub fn main() {
     hal_riscv::cpu::set_sstatus(sstatus);
 
     {
+        let sp = hal_riscv::cpu::read_sp();
+        hal_riscv::cpu::write_sscratch(sp);
+
         let file =
             ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
         let text_section: SectionHeader = file
@@ -139,6 +142,9 @@ pub fn main() {
 
         let program: fn() = unsafe { core::mem::transmute(data.0.as_ptr()) };
         program();
+
+        let sp = hal_riscv::cpu::read_sscratch();
+        hal_riscv::cpu::write_sp(sp);
     }
 
     nop_loop()

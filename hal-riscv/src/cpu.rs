@@ -183,6 +183,52 @@ pub fn write_satp(satp: Satp) {
 }
 
 #[inline(always)]
+pub fn write_sscratch(addr: *const ()) {
+    unsafe {
+        asm!(
+            "csrw sscratch, {}",
+            in(reg) addr
+        )
+    }
+}
+
+#[inline(always)]
+pub fn read_sscratch() -> *const () {
+    let sscratch: *const ();
+    unsafe {
+        asm!(
+            "csrr {}, sscratch",
+            out(reg) sscratch
+        )
+    }
+
+    sscratch
+}
+
+#[inline(always)]
+pub fn write_sp(addr: *const ()) {
+    unsafe {
+        asm!(
+            "mv sp, {}",
+            in(reg) addr
+        )
+    }
+}
+
+#[inline(always)]
+pub fn read_sp() -> *const () {
+    let sp: *const ();
+    unsafe {
+        asm!(
+            "mv {}, sp",
+            out(reg) sp
+        )
+    }
+
+    sp
+}
+
+#[inline(always)]
 pub fn read_mip() -> Mip {
     let mip: u64;
     unsafe {

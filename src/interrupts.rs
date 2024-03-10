@@ -36,7 +36,7 @@ extern "riscv-interrupt-m" fn handle_mti() {
     crate::serial_info!("Machine timer interrupt");
 
     let mut mtime = hal_riscv::timer::read_mtime();
-    mtime += 40_000_000;
+    mtime += 10_000_000;
     hal_riscv::timer::write_mtimecmp(mtime);
 
     let mip = hal_riscv::cpu::read_mip();
