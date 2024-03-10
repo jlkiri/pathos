@@ -54,7 +54,7 @@ unsafe impl GlobalAlloc for Locked<OnceCell<BuddyAllocator>> {
         // next free block in the order.
         let block_start_addr = ALLOC_START + (idx - order_start_idx) * size;
 
-        serial_debug!("Found block at adress: {:?}", block_start_addr as *mut u8);
+        // serial_debug!("Found block at adress: {:?}", block_start_addr as *mut u8);
         block_start_addr as *mut u8
     }
 

@@ -55,11 +55,11 @@ extern "riscv-interrupt-s" fn handle_sti() {
         let src = Vaddr::new(data.0.as_ptr() as u64);
         let dst = Vaddr::new(0x20_0000_0000 as u64);
 
-        serial_debug!(
-            "src: 0x{:x?}, dst: 0x{:x?}",
-            src.inner() as *const u8,
-            dst.inner() as *mut u8
-        );
+        // serial_debug!(
+        //     "src: 0x{:x?}, dst: 0x{:x?}",
+        //     src.inner() as *const u8,
+        //     dst.inner() as *mut u8
+        // );
 
         unsafe {
             ptr::copy_nonoverlapping(
@@ -67,16 +67,16 @@ extern "riscv-interrupt-s" fn handle_sti() {
                 dst.inner() as *mut u8,
                 data.0.len(),
             );
-            serial_debug!("Loaded program into 0x20_0000_0000");
+            // serial_debug!("Loaded program into 0x20_0000_0000");
         }
 
-        let sp = hal_riscv::cpu::read_sp();
-        hal_riscv::cpu::write_sscratch(sp);
+        // let sp = hal_riscv::cpu::read_sp();
+        // hal_riscv::cpu::write_sscratch(sp);
 
-        serial_debug!("Saved stack pointer to sscratch: {}", sp);
+        // serial_debug!("Saved stack pointer to sscratch: {}", sp);
 
-        let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
-        func();
+        // let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
+        // func();
     }
 }
 
