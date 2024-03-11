@@ -2,16 +2,12 @@ extern crate alloc;
 
 use crate::debug::{dump_machine_registers, dump_supervisor_registers};
 use crate::ecall::{self, ecall, Ecall};
-use crate::{nop_loop, serial_debug, serial_info, APP_CODE};
+use crate::{nop_loop, serial_debug};
 use core::marker::FnPtr;
 
 use core::arch::asm;
-use core::{panic, ptr};
-use elf::endian::LittleEndian;
-use elf::section::SectionHeader;
-use elf::ElfBytes;
-use hal_core::page::Vaddr;
-use hal_riscv::cpu::{Exception, Interrupt, Mie, Mip, Mstatus};
+use core::panic;
+use hal_riscv::cpu::{Exception, Interrupt, Mie, Mip, Mstatus, Sstatus};
 
 #[inline(always)]
 pub fn init_s_mode_ivt() {
@@ -29,7 +25,8 @@ pub fn init_m_mode_ivt() {
 extern "riscv-interrupt-s" fn handle_sti() {
     crate::serial_info!("Software timer interrupt");
 
-    dump_supervisor_registers();
+    // let sstatus = hal_riscv::cpu::read_sstatus();
+    // serial_debug!("CURRENT sstatus ::: {:?}", sstatus);
 
     ecall(Ecall::ClearPendingInterrupt(
         Interrupt::SupervisorTimer as u8,
@@ -45,12 +42,10 @@ extern "riscv-interrupt-m" fn handle_mti() {
 
     let mip = hal_riscv::cpu::read_mip();
 
-    dump_machine_registers();
+    // dump_machine_registers();
 
     let mip = Mip { stip: 1, ..mip };
     hal_riscv::cpu::write_mip(mip.clone());
-
-    crate::serial_debug!("[WRITE] {}", mip);
 }
 
 extern "riscv-interrupt-s" fn noop() {

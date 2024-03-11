@@ -526,7 +526,7 @@ pub fn read_scause() -> Cause {
 
     let cause = scause as i64;
     match cause.signum() {
-        1 => Cause::Exception(Exception::from(cause as u8)),
+        0 | 1 => Cause::Exception(Exception::from(cause as u8)),
         -1 => Cause::Interrupt(Interrupt::from(cause as u8)),
         _ => unreachable!(),
     }

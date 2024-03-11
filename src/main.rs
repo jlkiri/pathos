@@ -19,6 +19,7 @@ use elf::ElfBytes;
 use hal_core::page::{EntryFlags, Page, PageTable, Vaddr};
 use hal_riscv::cpu::{Medeleg, Mideleg, Mstatus, Satp, Sstatus};
 use pathos::alloc::init_allocator;
+use pathos::debug::dump_supervisor_registers;
 use pathos::{
     interrupts, nop_loop, page, ALLOC_SIZE, ALLOC_START, APP_CODE, BSS_END, BSS_START, DATA_END,
     DATA_START, HEAP_SIZE, HEAP_START, KERNEL_STACK_END, KERNEL_STACK_START, RODATA_END,
@@ -165,13 +166,13 @@ pub fn main() {
         }
 
         // Echo data as sanity check
-        let val = unsafe { *(0x20_0000_0000 as *const u8) };
-        serial_println!("{:x?}", val);
+        // let val = unsafe { *(0x20_0000_0000 as *const u8) };
+        // serial_println!("{:x?}", val);
 
         let sp = hal_riscv::cpu::read_sp();
         hal_riscv::cpu::write_sscratch(sp);
 
-        serial_debug!("Saved stack pointer to sscratch: 0x{:X}", sp);
+        serial_debug!("Saved stack pointer to sscratch: 0x{:x}", sp);
 
         // let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
         // func();
@@ -179,7 +180,10 @@ pub fn main() {
         hal_riscv::cpu::write_sepc(dst.inner() as usize);
     }
 
+    dump_supervisor_registers();
     hal_riscv::cpu::set_sstatus(sstatus);
+
+    serial_debug!("Switching to user mode");
 
     unsafe { asm!("sret") }
 
