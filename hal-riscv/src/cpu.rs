@@ -305,6 +305,19 @@ pub fn read_mtval() -> *const () {
 }
 
 #[inline(always)]
+pub fn read_stval() -> *const () {
+    let stval: *const ();
+    unsafe {
+        asm!(
+            "csrr {}, stval",
+            out(reg) stval
+        )
+    }
+
+    stval
+}
+
+#[inline(always)]
 pub fn write_mstatus(mstatus: Mstatus) {
     let mstatus = (mstatus.sie as u64) << 1
         | (mstatus.mie as u64) << 3
@@ -410,6 +423,19 @@ pub fn read_mepc() -> *const () {
     }
 
     mepc
+}
+
+#[inline(always)]
+pub fn read_sepc() -> *const () {
+    let sepc: *const ();
+    unsafe {
+        asm!(
+            "csrr {}, sepc",
+            out(reg) sepc
+        )
+    }
+
+    sepc
 }
 
 #[inline(always)]

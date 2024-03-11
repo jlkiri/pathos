@@ -162,7 +162,7 @@ impl Iterator for PageRange {
     type Item = Page;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.start.0 < self.end.0 {
+        if self.start.0 <= self.end.0 {
             let page = Page::containing_address(self.start.0);
             self.start.0 += 0x1000;
             Some(page)

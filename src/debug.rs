@@ -17,13 +17,17 @@ pub fn dump_machine_registers() {
 
 #[inline(always)]
 pub fn dump_supervisor_registers() {
-    // let sstatus = hal_riscv::cpu::read_sstatus();
-    // let sie = hal_riscv::cpu::read_sie();
-    // let sip = hal_riscv::cpu::read_sip();
-    // let scause = hal_riscv::cpu::read_scause();
+    let sstatus = hal_riscv::cpu::read_sstatus();
+    let sie = hal_riscv::cpu::read_sie();
+    let sip = hal_riscv::cpu::read_sip();
+    let scause = hal_riscv::cpu::read_scause();
+    let stval = hal_riscv::cpu::read_stval();
+    let sepc = hal_riscv::cpu::read_sepc();
 
-    // crate::serial_debug!("{}", sstatus);
-    // crate::serial_debug!("{}", sie);
-    // crate::serial_debug!("{}", sip);
-    // crate::serial_debug!("S-mode: {}", scause);
+    crate::serial_debug!("{}", sstatus);
+    crate::serial_debug!("{}", sie);
+    crate::serial_debug!("{}", sip);
+    crate::serial_debug!("sepc ::: {:?}", sepc);
+    crate::serial_debug!("stval ::: {:?}", stval);
+    crate::serial_debug!("S-mode: {}", scause);
 }

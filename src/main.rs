@@ -64,10 +64,6 @@ pub fn kinit() {
 
 #[no_mangle]
 pub fn main() {
-    // Print address of APP_CODE
-    // let app_code = APP_CODE.as_ptr();
-    // serial_info!("APP_CODE: 0x{:x}", app_code as usize);
-
     init_allocator();
     serial_debug!("Initialized global heap allocator");
 
@@ -105,8 +101,15 @@ pub fn main() {
         // sections works.
     }
 
-    page::map_alloc_range(root, 0x20_0000_0000, 0x20_0004_0000, EntryFlags::RWX);
-    serial_debug!("Mapped user space memory: 0x20_0000_0000 - 0x20_0004_0000");
+    {
+        page::map_alloc_range(root, 0x20_0000_0000, 0x20_0004_0000, EntryFlags::RWX);
+        serial_debug!("Mapped user space memory: 0x20_0000_0000 - 0x20_0004_0000");
+
+        let vaddr = Vaddr::new(0x20_0004_0000);
+        if page::translate_vaddr(root, vaddr).is_none() {
+            panic!("0x{:x} cannot be translated", vaddr.inner());
+        }
+    }
 
     // Create satp entry and enable Sv39 paging
     let satp = Satp::new(8, root as *mut PageTable as usize);
@@ -165,10 +168,10 @@ pub fn main() {
         let val = unsafe { *(0x20_0000_0000 as *const u8) };
         serial_println!("{:x?}", val);
 
-        // let sp = hal_riscv::cpu::read_sp();
-        // hal_riscv::cpu::write_sscratch(sp);
+        let sp = hal_riscv::cpu::read_sp();
+        hal_riscv::cpu::write_sscratch(sp);
 
-        // serial_debug!("Saved stack pointer to sscratch: 0x{:x}", sp);
+        serial_debug!("Saved stack pointer to sscratch: 0x{:X}", sp);
 
         // let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
         // func();
