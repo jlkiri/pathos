@@ -12,7 +12,7 @@ pub fn dump_machine_registers() {
     crate::serial_debug!("{}", mip);
     crate::serial_debug!("mepc ::: {:?}", mepc);
     crate::serial_debug!("mtval ::: {:?}", mtval);
-    crate::serial_debug!("M-mode: {}", mcause);
+    // crate::serial_debug!("M-mode: {}", mcause);
 }
 
 #[inline(always)]
@@ -29,5 +29,5 @@ pub fn dump_supervisor_registers() {
     crate::serial_debug!("{}", sip);
     crate::serial_debug!("sepc ::: {:?}", sepc);
     crate::serial_debug!("stval ::: {:?}", stval);
-    crate::serial_debug!("S-mode: {}", scause);
+    // crate::serial_debug!("S-mode: {}", scause);
 }
