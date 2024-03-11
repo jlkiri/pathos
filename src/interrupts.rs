@@ -69,14 +69,19 @@ fn dispatch_machine_exception() {
                     panic!("Unimplemented S-mode ecall handler ::: {:?}", mcause)
                 }
             }
-
-            unsafe { asm!("mret", clobber_abi("system")) }
+        }
+        hal_riscv::cpu::Cause::Exception(Exception::InstructionPageFault) => {
+            // dump_machine_registers();
+            serial_debug!("Instruction page fault ::: {:?}", mcause);
+            panic!("Instruction page fault ::: {:?}", mcause)
         }
         _ => {
             // dump_machine_registers();
             panic!("Unimplemented M-mode exception ::: {:?}", mcause)
         }
     }
+
+    unsafe { asm!("mret", clobber_abi("system")) }
 }
 
 #[no_mangle]

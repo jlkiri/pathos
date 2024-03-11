@@ -31,7 +31,12 @@ fn map_to_frame(root: &mut PageTable, page: Page, frame: Frame, flags: EntryFlag
         } else {
             if lv == 0 {
                 // Create a leaf entry and return
-                *entry = PageTableEntry::new(EntryFlags::Valid.as_u64() | flags.as_u64());
+                *entry = PageTableEntry::new(
+                    EntryFlags::Valid.as_u64()
+                        | EntryFlags::Accessed.as_u64()
+                        | EntryFlags::Dirty.as_u64()
+                        | flags.as_u64(),
+                );
                 entry.set_paddr(frame.addr());
                 return;
             }
@@ -73,7 +78,6 @@ pub fn map_alloc_range(root: &mut PageTable, start: usize, end: usize, flags: En
 
     let range = PageRange::new(start, end);
     for page in range {
-        // serial_debug!("Mapping page: 0x{:x?}", page.addr());
         map_alloc(root, page, flags.clone());
     }
 }
@@ -84,7 +88,6 @@ pub fn id_map_range(root: &mut PageTable, start: usize, end: usize, flags: Entry
 
     let range = PageRange::new(start, end);
     for page in range {
-        // serial_debug!("Mapping page: 0x{:x?}", page.addr());
         id_map(root, page, flags.clone());
     }
 }
@@ -102,6 +105,7 @@ pub fn translate_vaddr(root: &mut PageTable, vaddr: Vaddr) -> Option<Paddr> {
         }
 
         if entry.is_leaf() {
+            serial_debug!("LV: {}, {:x?}, {:b}", lv, entry.paddr(), entry.flags());
             return Some(entry.paddr());
         }
 

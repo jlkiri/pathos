@@ -106,8 +106,17 @@ pub fn main() {
         page::map_alloc_range(root, 0x20_0000_0000, 0x20_0004_0000, EntryFlags::RWX);
         serial_debug!("Mapped user space memory: 0x20_0000_0000 - 0x20_0004_0000");
 
+        let vaddr = Vaddr::new(0x20_0000_0000);
+        if let Some(addr) = page::translate_vaddr(root, vaddr) {
+            serial_debug!("Translated 0x{:x} to 0x{:x}", vaddr.inner(), addr.inner());
+        } else {
+            panic!("0x{:x} cannot be translated", vaddr.inner());
+        }
+
         let vaddr = Vaddr::new(0x20_0004_0000);
-        if page::translate_vaddr(root, vaddr).is_none() {
+        if let Some(addr) = page::translate_vaddr(root, vaddr) {
+            serial_debug!("Translated 0x{:x} to 0x{:x}", vaddr.inner(), addr.inner());
+        } else {
             panic!("0x{:x} cannot be translated", vaddr.inner());
         }
     }
@@ -147,23 +156,25 @@ pub fn main() {
         // map the address range & mark it as executable. After that,
         // load the program into the allocated memory.
 
+        // serial_debug!("Loaded program: {:x?}", data.0);
+
         let src = Vaddr::new(data.0.as_ptr() as u64);
-        let dst = Vaddr::new(0x20_0000_0000 as u64);
+        // let dst = Vaddr::new(0x20_0000_0000 as u64);
 
-        serial_debug!(
-            "src: {:x?}, dst: {:x?}",
-            src.inner() as *const u8,
-            dst.inner() as *mut u8
-        );
+        // serial_debug!(
+        //     "src: {:x?}, dst: {:x?}",
+        //     src.inner() as *const u8,
+        //     dst.inner() as *mut u8
+        // );
 
-        unsafe {
-            ptr::copy_nonoverlapping(
-                src.inner() as *const u8,
-                dst.inner() as *mut u8,
-                data.0.len(),
-            );
-            serial_debug!("Loaded program into 0x20_0000_0000");
-        }
+        // unsafe {
+        //     ptr::copy_nonoverlapping(
+        //         src.inner() as *const u8,
+        //         dst.inner() as *mut u8,
+        //         data.0.len(),
+        //     );
+        //     serial_debug!("Loaded program into 0x20_0000_0000");
+        // }
 
         // Echo data as sanity check
         // let val = unsafe { *(0x20_0000_0000 as *const u8) };
@@ -172,22 +183,20 @@ pub fn main() {
         let sp = hal_riscv::cpu::read_sp();
         hal_riscv::cpu::write_sscratch(sp);
 
-        serial_debug!("Saved stack pointer to sscratch: 0x{:x}", sp);
+        // serial_debug!("Saved stack pointer to sscratch: 0x{:x}", sp);
 
         // let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
         // func();
 
-        hal_riscv::cpu::write_sepc(dst.inner() as usize);
+        hal_riscv::cpu::write_sepc(src.inner() as *const ());
     }
 
-    dump_supervisor_registers();
+    // dump_supervisor_registers();
     hal_riscv::cpu::set_sstatus(sstatus);
-
-    serial_debug!("Switching to user mode");
 
     unsafe { asm!("sret") }
 
-    loop {}
+    // loop {}
 }
 
 unsafe fn init_page_tables(root: &mut PageTable) {

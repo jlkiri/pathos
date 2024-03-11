@@ -449,7 +449,7 @@ pub fn write_mepc(addr: *const ()) {
 }
 
 #[inline(always)]
-pub fn write_sepc(addr: usize) {
+pub fn write_sepc(addr: *const ()) {
     unsafe {
         asm!(
             "csrw sepc, {}",

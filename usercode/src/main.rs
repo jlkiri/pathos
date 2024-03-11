@@ -9,6 +9,7 @@ use core::panic::PanicInfo;
 
 #[no_mangle]
 fn main() -> u32 {
+    loop {}
     1 // Must return a value
 }
 

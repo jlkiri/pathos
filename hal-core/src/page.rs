@@ -5,7 +5,7 @@ pub struct PageTable {
 }
 
 /// Sv39 page table entry
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(transparent)]
 pub struct PageTableEntry(u64);
 
@@ -63,6 +63,11 @@ impl PageTableEntry {
 
     pub fn is_leaf(&self) -> bool {
         self.0 & EntryFlags::RWX.as_u64() != 0
+    }
+
+    pub fn flags(&self) -> u64 {
+        // unsafe { core::mem::transmute(self.0 & 0xff) }
+        self.0
     }
 
     pub fn set_paddr(&mut self, paddr: Paddr) {
