@@ -11,17 +11,18 @@ extern crate alloc;
 
 use ::core::arch::asm;
 use ::core::marker::FnPtr;
+use core::ops::Add;
 use core::ptr;
 use elf::endian::LittleEndian;
 use elf::section::SectionHeader;
 use elf::ElfBytes;
 use hal_core::page::{EntryFlags, Page, PageTable, Vaddr};
-use hal_riscv::cpu::{Mideleg, Mstatus, Satp, Sstatus};
+use hal_riscv::cpu::{Medeleg, Mideleg, Mstatus, Satp, Sstatus};
 use pathos::alloc::init_allocator;
 use pathos::{
-    interrupts, nop_loop, page, ALLOC_SIZE, ALLOC_START, BSS_END, BSS_START, DATA_END, DATA_START,
-    HEAP_SIZE, HEAP_START, KERNEL_STACK_END, KERNEL_STACK_START, RODATA_END, RODATA_START,
-    TEXT_END, TEXT_START,
+    interrupts, nop_loop, page, ALLOC_SIZE, ALLOC_START, APP_CODE, BSS_END, BSS_START, DATA_END,
+    DATA_START, HEAP_SIZE, HEAP_START, KERNEL_STACK_END, KERNEL_STACK_START, RODATA_END,
+    RODATA_START, TEXT_END, TEXT_START,
 };
 use pathos::{serial_debug, serial_info, serial_println};
 
@@ -36,6 +37,8 @@ pub fn kinit() {
         ..Default::default()
     };
 
+    let medeleg = Medeleg { uecall: 1 };
+
     let mstatus = Mstatus {
         mpp: 1,
         ..Default::default()
@@ -43,6 +46,9 @@ pub fn kinit() {
 
     hal_riscv::cpu::write_mideleg(mideleg.clone());
     crate::serial_debug!("[WRITE] {}", mideleg);
+
+    hal_riscv::cpu::write_medeleg(medeleg.clone());
+    crate::serial_debug!("[WRITE] {}", medeleg);
 
     hal_riscv::cpu::write_mstatus(mstatus.clone());
     crate::serial_debug!("[WRITE] {}", mstatus);
@@ -114,21 +120,82 @@ pub fn main() {
     serial_debug!("Initialized S-mode interrupt vector table");
 
     let sstatus = hal_riscv::cpu::read_sstatus();
-    let sstatus = Sstatus { sie: 1, ..sstatus };
+    let sstatus = Sstatus {
+        sie: 1,
+        spp: 0,
+        ..sstatus
+    };
+
+    {
+        let file =
+            ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
+
+        let text_section: SectionHeader = file
+            .section_header_by_name(".text")
+            .expect("Failed to find .text section")
+            .expect("Failed to parse .text section");
+
+        let data = file
+            .section_data(&text_section)
+            .expect("Failed to read .text section");
+
+        // Allocate enough virtual space for the program starting at 0x20_0000_0000,
+        // map the address range & mark it as executable. After that,
+        // load the program into the allocated memory.
+
+        let src = Vaddr::new(data.0.as_ptr() as u64);
+        let dst = Vaddr::new(0x20_0000_0000 as u64);
+
+        serial_debug!(
+            "src: {:x?}, dst: {:x?}",
+            src.inner() as *const u8,
+            dst.inner() as *mut u8
+        );
+
+        unsafe {
+            ptr::copy_nonoverlapping(
+                src.inner() as *const u8,
+                dst.inner() as *mut u8,
+                data.0.len(),
+            );
+            serial_debug!("Loaded program into 0x20_0000_0000");
+        }
+
+        // Echo data as sanity check
+        let val = unsafe { *(0x20_0000_0000 as *const u8) };
+        serial_println!("{:x?}", val);
+
+        // let sp = hal_riscv::cpu::read_sp();
+        // hal_riscv::cpu::write_sscratch(sp);
+
+        // serial_debug!("Saved stack pointer to sscratch: 0x{:x}", sp);
+
+        // let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
+        // func();
+
+        hal_riscv::cpu::write_sepc(dst.inner() as usize);
+    }
+
     hal_riscv::cpu::set_sstatus(sstatus);
 
-    nop_loop()
+    unsafe { asm!("sret") }
+
+    loop {}
 }
 
 unsafe fn init_page_tables(root: &mut PageTable) {
-    page::id_map_range(root, TEXT_START, TEXT_END, EntryFlags::RX);
+    // I needed to set .text and .rodata to X because otherwise I
+    // get store page faults on AMO instructions in the kernel
+    // (which probably belong to mutexes or spinlocks).
+
+    page::id_map_range(root, TEXT_START, TEXT_END, EntryFlags::RWX);
     serial_debug!(
         "Identity mapped kernel .text: 0x{:x} - 0x{:x}",
         TEXT_START,
         TEXT_END
     );
 
-    page::id_map_range(root, RODATA_START, RODATA_END, EntryFlags::RX);
+    page::id_map_range(root, RODATA_START, RODATA_END, EntryFlags::RWX);
     serial_debug!(
         "Identity mapped kernel .rodata: 0x{:x} - 0x{:x}",
         RODATA_START,

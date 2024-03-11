@@ -1,5 +1,4 @@
 use core::{fmt, ptr};
-use once_cell::unsync::Lazy;
 use owo_colors::OwoColorize;
 use spin::Mutex;
 
@@ -11,17 +10,9 @@ const ERROR: &str = "ERROR";
 
 const PATHOS: &str = "PathOS";
 
-use uart_16550::MmioSerialPort;
-
 struct Serial(usize);
 
 static SERIAL: Mutex<Serial> = Mutex::new(Serial(UART_MMIO_ADDR));
-
-// static SERIAL: Mutex<Lazy<MmioSerialPort>> = Mutex::new(Lazy::new(|| {
-//     let mut port = unsafe { MmioSerialPort::new(UART_MMIO_ADDR) };
-//     port.init();
-//     port
-// }));
 
 impl fmt::Write for Serial {
     fn write_str(&mut self, s: &str) -> fmt::Result {

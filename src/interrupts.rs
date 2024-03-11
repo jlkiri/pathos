@@ -34,50 +34,6 @@ extern "riscv-interrupt-s" fn handle_sti() {
     ecall(Ecall::ClearPendingInterrupt(
         Interrupt::SupervisorTimer as u8,
     ));
-
-    {
-        let file =
-            ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
-
-        let text_section: SectionHeader = file
-            .section_header_by_name(".text")
-            .expect("Failed to find .text section")
-            .expect("Failed to parse .text section");
-
-        let data = file
-            .section_data(&text_section)
-            .expect("Failed to read .text section");
-
-        // Allocate enough virtual space for the program starting at 0x20_0000_0000,
-        // map the address range & mark it as executable. After that,
-        // load the program into the allocated memory.
-
-        let src = Vaddr::new(data.0.as_ptr() as u64);
-        let dst = Vaddr::new(0x20_0000_0000 as u64);
-
-        // serial_debug!(
-        //     "src: 0x{:x?}, dst: 0x{:x?}",
-        //     src.inner() as *const u8,
-        //     dst.inner() as *mut u8
-        // );
-
-        unsafe {
-            ptr::copy_nonoverlapping(
-                src.inner() as *const u8,
-                dst.inner() as *mut u8,
-                data.0.len(),
-            );
-            // serial_debug!("Loaded program into 0x20_0000_0000");
-        }
-
-        let sp = hal_riscv::cpu::read_sp();
-        hal_riscv::cpu::write_sscratch(sp);
-
-        serial_debug!("Saved stack pointer to sscratch: {}", sp);
-
-        let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
-        func();
-    }
 }
 
 extern "riscv-interrupt-m" fn handle_mti() {
@@ -113,14 +69,9 @@ fn dispatch_machine_exception() {
             match ecall {
                 Ecall::SModeFinishBootstrap => handle_smode_finish_bootstrap(),
                 Ecall::ClearPendingInterrupt(cause) => handle_clear_pending_interrupt(cause),
-                Ecall::Exit(code) => {
-                    let sp = hal_riscv::cpu::read_sscratch();
-                    hal_riscv::cpu::write_sp(sp);
-
-                    crate::serial_info!("Restored stack pointer: {:x?}", sp);
-                    crate::serial_info!("Program exited with code: {}", code);
-
-                    hal_riscv::cpu::write_mepc((nop_loop as fn()).addr());
+                _ => {
+                    dump_machine_registers();
+                    panic!("Unimplemented S-mode ecall handler ::: {:?}", mcause)
                 }
             }
 
@@ -129,6 +80,40 @@ fn dispatch_machine_exception() {
         _ => {
             dump_machine_registers();
             panic!("Unimplemented M-mode exception ::: {:?}", mcause)
+        }
+    }
+}
+
+#[no_mangle]
+fn dispatch_supervisor_exception() {
+    let scause = hal_riscv::cpu::read_scause();
+    match scause {
+        hal_riscv::cpu::Cause::Exception(Exception::UserEcall) => {
+            let ecall = ecall::read_ecall();
+
+            crate::serial_info!("U-mode ECALL ::: {:?}", ecall);
+
+            match ecall {
+                Ecall::Exit(_code) => {
+                    let sp = hal_riscv::cpu::read_sscratch();
+                    hal_riscv::cpu::write_sp(sp);
+
+                    crate::serial_error!("Restored stack pointer: {:x?}", sp);
+                    crate::serial_error!("Program exited with code: {}", _code);
+
+                    hal_riscv::cpu::write_mepc((nop_loop as fn()).addr());
+                }
+                _ => {
+                    dump_supervisor_registers();
+                    panic!("Unimplemented U-mode ecall handler ::: {:?}", scause)
+                }
+            }
+
+            unsafe { asm!("sret", clobber_abi("system")) }
+        }
+        _ => {
+            dump_supervisor_registers();
+            panic!("Unimplemented S-mode exception ::: {:?}", scause)
         }
     }
 }
@@ -168,7 +153,7 @@ fn handle_clear_pending_interrupt(cause: u8) {
 fn stvec_table() {
     unsafe {
         asm!(
-            "jal {noop}",
+            "jal {handle_exc}",
             ".org {stvec} + {ssi_idx} * 4",
             "jal {noop}",
             ".org {stvec} + {msi_idx} * 4",
@@ -183,6 +168,7 @@ fn stvec_table() {
             "jal {noop}",
             noop = sym noop,
             stvec = sym stvec_table,
+            handle_exc = sym dispatch_supervisor_exception,
             handle_sti = sym handle_sti,
             ssi_idx = const Interrupt::SupervisorSoftware as u8,
             msi_idx = const Interrupt::MachineSoftware as u8,

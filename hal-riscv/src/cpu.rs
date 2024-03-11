@@ -108,6 +108,11 @@ pub struct Mideleg {
     pub msi: u8,
 }
 
+#[derive(Default, Clone)]
+pub struct Medeleg {
+    pub uecall: u8,
+}
+
 #[derive(Debug, Default)]
 pub struct Sstatus {
     pub sie: u8,
@@ -350,6 +355,17 @@ pub fn write_mideleg(mideleg: Mideleg) {
 }
 
 #[inline(always)]
+pub fn write_medeleg(medeleg: Medeleg) {
+    let medeleg = (medeleg.uecall as u64) << 8;
+    unsafe {
+        asm!(
+            "csrw medeleg, {}",
+            in(reg) medeleg
+        )
+    }
+}
+
+#[inline(always)]
 pub fn write_mie(mie: Mie) {
     let mie = (mie.ssie as u64) << 1
         | (mie.stie as u64) << 5
@@ -401,6 +417,16 @@ pub fn write_mepc(addr: *const ()) {
     unsafe {
         asm!(
             "csrw mepc, {}",
+            in(reg) addr
+        )
+    }
+}
+
+#[inline(always)]
+pub fn write_sepc(addr: usize) {
+    unsafe {
+        asm!(
+            "csrw sepc, {}",
             in(reg) addr
         )
     }
@@ -547,6 +573,12 @@ impl fmt::Display for Mideleg {
             "mideleg ::: ssi: {:b}, sti: {:b}, mti: {:b}, msi: {:b}",
             self.ssi, self.sti, self.mti, self.msi
         )
+    }
+}
+
+impl fmt::Display for Medeleg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "medeleg ::: uecall: {:b}", self.uecall)
     }
 }
 
