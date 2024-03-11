@@ -65,7 +65,7 @@ fn dispatch_machine_exception() {
                 Ecall::SModeFinishBootstrap => handle_smode_finish_bootstrap(),
                 Ecall::ClearPendingInterrupt(cause) => handle_clear_pending_interrupt(cause),
                 _ => {
-                    dump_machine_registers();
+                    // dump_machine_registers();
                     panic!("Unimplemented S-mode ecall handler ::: {:?}", mcause)
                 }
             }
@@ -73,7 +73,7 @@ fn dispatch_machine_exception() {
             unsafe { asm!("mret", clobber_abi("system")) }
         }
         _ => {
-            dump_machine_registers();
+            // dump_machine_registers();
             panic!("Unimplemented M-mode exception ::: {:?}", mcause)
         }
     }
@@ -99,7 +99,7 @@ fn dispatch_supervisor_exception() {
                     hal_riscv::cpu::write_mepc((nop_loop as fn()).addr());
                 }
                 _ => {
-                    dump_supervisor_registers();
+                    // dump_supervisor_registers();
                     panic!("Unimplemented U-mode ecall handler ::: {:?}", scause)
                 }
             }
@@ -107,7 +107,7 @@ fn dispatch_supervisor_exception() {
             unsafe { asm!("sret", clobber_abi("system")) }
         }
         _ => {
-            dump_supervisor_registers();
+            // dump_supervisor_registers();
             panic!("Unimplemented S-mode exception ::: {:?}", scause)
         }
     }
