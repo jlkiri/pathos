@@ -61,6 +61,10 @@ pub fn kinit() {
     serial_debug!("Initialized M-mode interrupt vector table");
 
     unsafe { asm!("mret") }
+
+    loop {
+        unsafe { asm!("wfi") }
+    }
 }
 
 #[no_mangle]
@@ -183,6 +187,8 @@ pub fn main() {
     //     let sp = hal_riscv::cpu::read_sp();
     //     hal_riscv::cpu::write_sscratch(sp);
 
+    //     unsafe { asm!("sfence.vma zero, zero") }
+
     //     // serial_debug!("Saved stack pointer to sscratch: 0x{:x}", sp);
 
     //     // let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
@@ -191,20 +197,18 @@ pub fn main() {
     //     hal_riscv::cpu::write_sepc(dst.inner() as *const ());
     // }
 
-    // dump_supervisor_registers();
-
-    hal_riscv::cpu::write_sepc((looop as fn()).addr());
+    // hal_riscv::cpu::write_sepc((looop as fn()).addr());
     hal_riscv::cpu::set_sstatus(sstatus);
-
-    unsafe { asm!("sret") }
 
     looop()
 }
 
 #[no_mangle]
 #[repr(align(64))]
-fn looop() {
-    loop {}
+pub fn looop() {
+    loop {
+        unsafe { asm!("wfi") }
+    }
 }
 
 unsafe fn init_page_tables(root: &mut PageTable) {
