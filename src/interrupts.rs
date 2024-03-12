@@ -28,6 +28,8 @@ extern "riscv-interrupt-s" fn handle_sti() {
     // let sstatus = hal_riscv::cpu::read_sstatus();
     // serial_debug!("CURRENT sstatus ::: {:?}", sstatus);
 
+    dump_supervisor_registers();
+
     ecall(Ecall::ClearPendingInterrupt(
         Interrupt::SupervisorTimer as u8,
     ));
@@ -42,7 +44,7 @@ extern "riscv-interrupt-m" fn handle_mti() {
 
     let mip = hal_riscv::cpu::read_mip();
 
-    // dump_machine_registers();
+    dump_machine_registers();
 
     let mip = Mip { stip: 1, ..mip };
     hal_riscv::cpu::write_mip(mip.clone());
@@ -54,9 +56,12 @@ extern "riscv-interrupt-s" fn noop() {
 
 #[no_mangle]
 fn dispatch_machine_exception() {
-    let mcause = hal_riscv::cpu::read_mcause();
+    use hal_riscv::cpu;
+    use hal_riscv::cpu::Cause;
+
+    let mcause = cpu::read_mcause();
     match mcause {
-        hal_riscv::cpu::Cause::Exception(Exception::SupervisorEcall) => {
+        Cause::Exception(Exception::SupervisorEcall) => {
             let ecall = ecall::read_ecall();
 
             crate::serial_info!("S-mode ECALL ::: {:?}", ecall);
@@ -70,10 +75,14 @@ fn dispatch_machine_exception() {
                 }
             }
         }
-        hal_riscv::cpu::Cause::Exception(Exception::InstructionPageFault) => {
-            // dump_machine_registers();
+        Cause::Exception(Exception::InstructionPageFault) => {
+            dump_machine_registers();
             serial_debug!("Instruction page fault ::: {:?}", mcause);
-            panic!("Instruction page fault ::: {:?}", mcause)
+            // panic!("Instruction page fault ::: {:?}", mcause)
+            let mstatus = cpu::read_mstatus();
+            let mstatus = Mstatus { mpp: 1, ..mstatus };
+            cpu::write_mstatus(mstatus);
+            cpu::write_mepc_next();
         }
         _ => {
             // dump_machine_registers();

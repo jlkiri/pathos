@@ -139,64 +139,72 @@ pub fn main() {
         ..sstatus
     };
 
-    {
-        let file =
-            ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
+    // {
+    //     let file =
+    //         ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
 
-        let text_section: SectionHeader = file
-            .section_header_by_name(".text")
-            .expect("Failed to find .text section")
-            .expect("Failed to parse .text section");
+    //     let text_section: SectionHeader = file
+    //         .section_header_by_name(".text")
+    //         .expect("Failed to find .text section")
+    //         .expect("Failed to parse .text section");
 
-        let data = file
-            .section_data(&text_section)
-            .expect("Failed to read .text section");
+    //     let data = file
+    //         .section_data(&text_section)
+    //         .expect("Failed to read .text section");
 
-        // Allocate enough virtual space for the program starting at 0x20_0000_0000,
-        // map the address range & mark it as executable. After that,
-        // load the program into the allocated memory.
+    //     // Allocate enough virtual space for the program starting at 0x20_0000_0000,
+    //     // map the address range & mark it as executable. After that,
+    //     // load the program into the allocated memory.
 
-        // serial_debug!("Loaded program: {:x?}", data.0);
+    //     // serial_debug!("Loaded program: {:x?}", data.0);
 
-        let src = Vaddr::new(data.0.as_ptr() as u64);
-        // let dst = Vaddr::new(0x20_0000_0000 as u64);
+    //     let src = Vaddr::new(data.0.as_ptr() as u64);
+    //     let dst = Vaddr::new(0x20_0000_0000 as u64);
 
-        // serial_debug!(
-        //     "src: {:x?}, dst: {:x?}",
-        //     src.inner() as *const u8,
-        //     dst.inner() as *mut u8
-        // );
+    //     serial_debug!(
+    //         "src: {:x?}, dst: {:x?}",
+    //         src.inner() as *const u8,
+    //         dst.inner() as *mut u8
+    //     );
 
-        // unsafe {
-        //     ptr::copy_nonoverlapping(
-        //         src.inner() as *const u8,
-        //         dst.inner() as *mut u8,
-        //         data.0.len(),
-        //     );
-        //     serial_debug!("Loaded program into 0x20_0000_0000");
-        // }
+    //     unsafe {
+    //         ptr::copy_nonoverlapping(
+    //             src.inner() as *const u8,
+    //             dst.inner() as *mut u8,
+    //             data.0.len(),
+    //         );
+    //         serial_debug!("Loaded program into 0x20_0000_0000");
+    //     }
 
-        // Echo data as sanity check
-        // let val = unsafe { *(0x20_0000_0000 as *const u8) };
-        // serial_println!("{:x?}", val);
+    //     // Echo data as sanity check
+    //     let val = unsafe { *(0x20_0000_0000 as *const u8) };
+    //     serial_println!("{:x?}", val);
 
-        let sp = hal_riscv::cpu::read_sp();
-        hal_riscv::cpu::write_sscratch(sp);
+    //     let sp = hal_riscv::cpu::read_sp();
+    //     hal_riscv::cpu::write_sscratch(sp);
 
-        // serial_debug!("Saved stack pointer to sscratch: 0x{:x}", sp);
+    //     // serial_debug!("Saved stack pointer to sscratch: 0x{:x}", sp);
 
-        // let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
-        // func();
+    //     // let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
+    //     // func();
 
-        hal_riscv::cpu::write_sepc(src.inner() as *const ());
-    }
+    //     hal_riscv::cpu::write_sepc(dst.inner() as *const ());
+    // }
 
     // dump_supervisor_registers();
+
+    hal_riscv::cpu::write_sepc((looop as fn()).addr());
     hal_riscv::cpu::set_sstatus(sstatus);
 
     unsafe { asm!("sret") }
 
-    // loop {}
+    looop()
+}
+
+#[no_mangle]
+#[repr(align(64))]
+fn looop() {
+    loop {}
 }
 
 unsafe fn init_page_tables(root: &mut PageTable) {

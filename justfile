@@ -5,7 +5,7 @@ dump:
         --no-show-raw-insn -M no-aliases
 
 run:
-    @ qemu-system-riscv64 --machine virt --serial stdio --monitor none \
+    @ qemu-system-riscv64 --machine virt --smp 1 -cpu rv64,pmp=false --serial stdio --monitor none \
         --bios {{bin}} --nographic \
         -d guest_errors,unimp -D log.txt -m 128M
 
