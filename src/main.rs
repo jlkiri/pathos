@@ -139,7 +139,7 @@ pub fn main() {
     let sstatus = hal_riscv::cpu::read_sstatus();
     let sstatus = Sstatus {
         sie: 1,
-        spp: 0,
+        // spp: 0,
         ..sstatus
     };
 
@@ -197,19 +197,19 @@ pub fn main() {
     //     hal_riscv::cpu::write_sepc(dst.inner() as *const ());
     // }
 
-    // hal_riscv::cpu::write_sepc((looop as fn()).addr());
+    hal_riscv::cpu::write_sepc((looop as fn()).addr());
     hal_riscv::cpu::set_sstatus(sstatus);
 
-    looop()
-}
+    unsafe { asm!("sret") }
 
-#[no_mangle]
-#[repr(align(64))]
-pub fn looop() {
     loop {
         unsafe { asm!("wfi") }
     }
 }
+
+#[no_mangle]
+#[repr(align(64))]
+pub fn looop() {}
 
 unsafe fn init_page_tables(root: &mut PageTable) {
     // I needed to set .text and .rodata to X because otherwise I
