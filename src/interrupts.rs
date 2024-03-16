@@ -7,13 +7,13 @@ use core::marker::FnPtr;
 
 use core::arch::asm;
 use core::panic;
-use hal_riscv::cpu::{Exception, Interrupt, Mie, Mip, Mstatus, Sstatus};
+use hal_riscv::cpu::{self, Exception, Interrupt, Mie, Mip, Mstatus, Sstatus};
 
 #[inline(always)]
 pub fn init_s_mode_ivt() {
     serial_debug!("[WRITE] stvec ::: {:?}", (stvec_table as fn()).addr());
     hal_riscv::cpu::write_stvec_vectored(stvec_table);
-    ecall(Ecall::SModeFinishBootstrap)
+    // ecall(Ecall::SModeFinishBootstrap)
 }
 
 #[inline(always)]
@@ -39,12 +39,12 @@ extern "riscv-interrupt-m" fn handle_mti() {
     mtime += 20_000_000;
     hal_riscv::timer::write_mtimecmp(mtime);
 
-    let mip = hal_riscv::cpu::read_mip();
+    // let mip = hal_riscv::cpu::read_mip();
 
     dump_machine_registers();
 
-    let mip = Mip { stip: 1, ..mip };
-    hal_riscv::cpu::write_mip(mip.clone());
+    // let mip = Mip { stip: 1, ..mip };
+    // hal_riscv::cpu::write_mip(mip.clone());
 }
 
 extern "riscv-interrupt-s" fn noop() {
@@ -53,7 +53,6 @@ extern "riscv-interrupt-s" fn noop() {
 
 #[no_mangle]
 fn dispatch_machine_exception() {
-    use hal_riscv::cpu;
     use hal_riscv::cpu::Cause;
 
     let mcause = cpu::read_mcause();
@@ -67,7 +66,6 @@ fn dispatch_machine_exception() {
                 Ecall::SModeFinishBootstrap => handle_smode_finish_bootstrap(),
                 Ecall::ClearPendingInterrupt(cause) => handle_clear_pending_interrupt(cause),
                 _ => {
-                    // dump_machine_registers();
                     panic!("Unimplemented S-mode ecall handler ::: {:?}", mcause)
                 }
             }
@@ -116,24 +114,25 @@ fn dispatch_supervisor_exception() {
         hal_riscv::cpu::Cause::Exception(Exception::UserEcall) => {
             let ecall = ecall::read_ecall();
 
-            unsafe {
-                asm!("ebreak");
-            }
-
-            // crate::serial_info!("U-mode ECALL ::: {:?}", ecall);
+            crate::serial_info!("U-mode ECALL ::: {:?}", ecall);
 
             match ecall {
                 Ecall::Exit(_code) => {
                     let sp = hal_riscv::cpu::read_sscratch();
                     hal_riscv::cpu::write_sp(sp);
 
-                    // crate::serial_error!("Restored stack pointer: {:x?}", sp);
-                    // crate::serial_error!("Program exited with code: {}", _code);
+                    crate::serial_error!("Restored stack pointer: {:x?}", sp);
+                    crate::serial_error!("Program exited with code: {}", _code);
 
-                    hal_riscv::cpu::write_mepc((nop_loop as fn()).addr());
+                    let sstatus = Sstatus {
+                        spp: 1,
+                        ..Default::default()
+                    };
+                    cpu::set_sstatus(sstatus);
+
+                    hal_riscv::cpu::write_sepc((nop_loop as fn()).addr());
                 }
                 _ => {
-                    // dump_supervisor_registers();
                     panic!("Unimplemented U-mode ecall handler ::: {:?}", scause)
                 }
             }
@@ -141,7 +140,6 @@ fn dispatch_supervisor_exception() {
             unsafe { asm!("sret", clobber_abi("system")) }
         }
         _ => {
-            // dump_supervisor_registers();
             panic!("Unimplemented S-mode exception ::: {:?}", scause)
         }
     }
@@ -150,15 +148,15 @@ fn dispatch_supervisor_exception() {
 #[inline(always)]
 fn handle_smode_finish_bootstrap() {
     let mie = Mie {
-        mtie: 1,
-        stie: 1,
+        // mtie: 1,
+        // stie: 1,
         ..Default::default()
     };
 
     let mstatus = hal_riscv::cpu::read_mstatus();
     let mstatus = Mstatus {
         mpp: 1,
-        mpie: 1,
+        // mpie: 1,
         fs: 1,
         ..mstatus
     };

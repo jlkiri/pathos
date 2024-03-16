@@ -36,13 +36,14 @@ pub fn kinit() {
     serial_println!("{}", LOGO);
 
     let mideleg = Mideleg {
-        sti: 1,
+        // sti: 1,
         ..Default::default()
     };
 
     let medeleg = Medeleg { uecall: 1 };
     let mstatus = Mstatus {
         mpp: 1,
+        fs: 1,
         ..Default::default()
     };
 
@@ -144,8 +145,8 @@ pub fn main() {
 
     serial_info!("Enabled Sv39 paging");
 
-    // interrupts::init_s_mode_ivt();
-    // serial_debug!("Initialized S-mode interrupt vector table");
+    interrupts::init_s_mode_ivt();
+    serial_debug!("Initialized S-mode interrupt vector table");
 
     // let sstatus = hal_riscv::cpu::read_sstatus();
     let sstatus = Sstatus {
