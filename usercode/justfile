@@ -9,3 +9,6 @@ dump:
 
 readelf:
     @ riscv64-linux-readelf -a target/riscv-pathos/release/usercode
+
+copy:
+    @ cp target/riscv-pathos/release/usercode ../src/app

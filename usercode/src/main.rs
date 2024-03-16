@@ -3,13 +3,8 @@
 
 use core::panic::PanicInfo;
 
-// extern "C" {
-//     pub static STACK_END: usize;
-// }
-
 #[no_mangle]
 fn main() -> u32 {
-    loop {}
     1 // Must return a value
 }
 

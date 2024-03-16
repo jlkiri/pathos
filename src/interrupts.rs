@@ -25,9 +25,6 @@ pub fn init_m_mode_ivt() {
 extern "riscv-interrupt-s" fn handle_sti() {
     crate::serial_info!("Software timer interrupt");
 
-    // let sstatus = hal_riscv::cpu::read_sstatus();
-    // serial_debug!("CURRENT sstatus ::: {:?}", sstatus);
-
     dump_supervisor_registers();
 
     ecall(Ecall::ClearPendingInterrupt(
@@ -78,36 +75,30 @@ fn dispatch_machine_exception() {
         Cause::Exception(Exception::InstructionPageFault) => {
             dump_machine_registers();
             serial_debug!("Instruction page fault ::: {:?}", mcause);
-            let mstatus = cpu::read_mstatus();
-            let mtval = cpu::read_mtval();
-            unsafe {
-                serial_debug!("mtval = {:b}", *mtval);
-            }
-            let mstatus = Mstatus { mpp: 1, ..mstatus };
-            cpu::write_mstatus(mstatus);
-            cpu::write_mepc_next();
             loop {}
         }
         Cause::Exception(Exception::InstructionFault) => {
             dump_machine_registers();
             serial_debug!("Instruction access fault ::: {:?}", mcause);
-            let mstatus = cpu::read_mstatus();
-            let mtval = cpu::read_mtval();
-            serial_debug!("mtval ::: {:?}", mtval);
-            let mstatus = Mstatus { mpp: 1, ..mstatus };
-            cpu::write_mstatus(mstatus);
-            cpu::write_mepc_next();
             loop {}
         }
         Cause::Exception(Exception::IllegalInstruction) => {
             dump_machine_registers();
             serial_debug!("Illegal instruction ::: {:?}", mcause);
+            loop {}
+        }
+        Cause::Exception(Exception::Breakpoint) => {
+            dump_machine_registers();
+            serial_debug!("Breakpoint ::: {:?}", mcause);
+            loop {}
+        }
+        Cause::Exception(Exception::UserEcall) => {
+            dump_machine_registers();
+            serial_debug!("User ecall ::: {:?}", mcause);
             let mstatus = cpu::read_mstatus();
-            // let mtval = cpu::read_mtval();
             let mstatus = Mstatus { mpp: 1, ..mstatus };
             cpu::write_mstatus(mstatus);
-            cpu::write_mepc_next();
-            loop {}
+            cpu::write_mepc((nop_loop as fn()).addr());
         }
         _ => {
             // dump_machine_registers();
@@ -125,15 +116,19 @@ fn dispatch_supervisor_exception() {
         hal_riscv::cpu::Cause::Exception(Exception::UserEcall) => {
             let ecall = ecall::read_ecall();
 
-            crate::serial_info!("U-mode ECALL ::: {:?}", ecall);
+            unsafe {
+                asm!("ebreak");
+            }
+
+            // crate::serial_info!("U-mode ECALL ::: {:?}", ecall);
 
             match ecall {
                 Ecall::Exit(_code) => {
                     let sp = hal_riscv::cpu::read_sscratch();
                     hal_riscv::cpu::write_sp(sp);
 
-                    crate::serial_error!("Restored stack pointer: {:x?}", sp);
-                    crate::serial_error!("Program exited with code: {}", _code);
+                    // crate::serial_error!("Restored stack pointer: {:x?}", sp);
+                    // crate::serial_error!("Program exited with code: {}", _code);
 
                     hal_riscv::cpu::write_mepc((nop_loop as fn()).addr());
                 }

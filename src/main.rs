@@ -12,6 +12,7 @@ extern crate alloc;
 use ::core::arch::asm;
 use ::core::marker::FnPtr;
 use alloc::boxed::Box;
+use alloc::vec::{self, Vec};
 use core::ops::Add;
 use core::ptr;
 use elf::endian::LittleEndian;
@@ -108,23 +109,32 @@ pub fn main() {
 
     serial_debug!("Sanity check passed");
 
-    page::map_alloc_range(root, 0x20_0000_0000, 0x20_0004_0000, EntryFlags::RWX);
+    let file = ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
 
-    serial_debug!("Mapped user space memory: 0x20_0000_0000 - 0x20_0004_0000");
+    let text_section: SectionHeader = file
+        .section_header_by_name(".text")
+        .expect("Failed to find .text section")
+        .expect("Failed to parse .text section");
 
-    // let vaddr = Vaddr::new(0x20_0000_0000);
-    // if let Some(addr) = page::translate_vaddr(root, vaddr) {
-    //     serial_debug!("Translated 0x{:x} to 0x{:x}", vaddr.inner(), addr.inner());
-    // } else {
-    //     panic!("0x{:x} cannot be translated", vaddr.inner());
-    // }
+    let data = file
+        .section_data(&text_section)
+        .expect("Failed to read .text section");
 
-    // let vaddr = Vaddr::new(0x20_0004_0000);
-    // if let Some(addr) = page::translate_vaddr(root, vaddr) {
-    //     serial_debug!("Translated 0x{:x} to 0x{:x}", vaddr.inner(), addr.inner());
-    // } else {
-    //     panic!("0x{:x} cannot be translated", vaddr.inner());
-    // }
+    // Put data somewhere in the heap
+    let data = Vec::from(data.0).leak();
+    serial_debug!("Copied user program to address: {:#x?}", data.as_ptr());
+
+    let vstart = 0x20_0000_0000;
+    let pstart = data.as_ptr() as usize;
+
+    page::map_range(root, vstart, pstart, 4096, EntryFlags::RWXU);
+    unsafe { asm!("sfence.vma zero, zero") }
+
+    serial_debug!(
+        "Mapped user space memory: {:#x?} - {:#x?}",
+        vstart,
+        vstart + 4096
+    );
 
     // Create satp entry and enable Sv39 paging
     let satp = Satp::new(8, root as *mut PageTable as usize);
@@ -144,58 +154,34 @@ pub fn main() {
         ..Default::default()
     };
 
-    let file = ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
-
-    let text_section: SectionHeader = file
-        .section_header_by_name(".text")
-        .expect("Failed to find .text section")
-        .expect("Failed to parse .text section");
-
-    let data = file
-        .section_data(&text_section)
-        .expect("Failed to read .text section");
-
-    serial_debug!("here");
-
     // Allocate enough virtual space for the program starting at 0x20_0000_0000,
     // map the address range & mark it as executable. After that,
     // load the program into the allocated memory.
 
-    let src = Vaddr::new(data.0.as_ptr() as u64);
-    let dst = Vaddr::new(0x20_0000_0000 as u64);
+    // let src = Vaddr::new(data.0.as_ptr() as u64);
+    // let dst = Vaddr::new(0x20_0000_0000 as u64);
 
-    serial_debug!(
-        "src: {:x?}, dst: {:x?}",
-        src.inner() as *const u8,
-        dst.inner() as *mut u8
-    );
+    // serial_debug!(
+    //     "src: {:x?}, dst: {:x?}",
+    //     src.inner() as *const u8,
+    //     dst.inner() as *mut u8
+    // );
 
-    unsafe {
-        ptr::copy_nonoverlapping(
-            src.inner() as *const u8,
-            dst.inner() as *mut u8,
-            data.0.len(),
-        );
-        serial_debug!("Loaded program into 0x20_0000_0000");
-    }
-
-    // Sanity check first instruction at 0x20_0000_0000
-    let first_instruction = unsafe { *(0x20_0000_0000 as *const u32) };
-    serial_debug!(
-        "First instruction: 0x{:x} --- 0b{:b}",
-        first_instruction,
-        first_instruction
-    );
-
-    page::map_alloc_range(root, 0x20_0000_0000, 0x20_0004_0000, EntryFlags::RWXU);
-    unsafe { asm!("sfence.vma zero, zero") }
+    // unsafe {
+    //     ptr::copy_nonoverlapping(
+    //         src.inner() as *const u8,
+    //         dst.inner() as *mut u8,
+    //         data.0.len(),
+    //     );
+    //     serial_debug!("Loaded program into 0x20_0000_0000");
+    // }
 
     let sp = hal_riscv::cpu::read_sp();
     hal_riscv::cpu::write_sscratch(sp);
 
     serial_debug!("Saved stack pointer to sscratch: 0x{:x}", sp);
 
-    hal_riscv::cpu::write_sepc(dst.inner() as *const ());
+    hal_riscv::cpu::write_sepc(0x20_0000_0000 as *const ());
     hal_riscv::cpu::set_sstatus(sstatus);
 
     unsafe { asm!("sret") }

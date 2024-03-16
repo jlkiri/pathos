@@ -3,7 +3,9 @@ extern crate alloc;
 use core::alloc::Layout;
 
 use alloc::{alloc::alloc_zeroed, boxed::Box};
-use hal_core::page::{EntryFlags, Frame, Paddr, Page, PageRange, PageTable, PageTableEntry, Vaddr};
+use hal_core::page::{
+    EntryFlags, Frame, FrameRange, Paddr, Page, PageRange, PageTable, PageTableEntry, Vaddr,
+};
 
 use crate::serial_debug;
 
@@ -23,13 +25,13 @@ fn map_to_frame(root: &mut PageTable, page: Page, frame: Frame, flags: EntryFlag
                 //     page.addr(),
                 //     entry.paddr()
                 // );
-                *entry = PageTableEntry::new(
-                    EntryFlags::Valid.as_u64()
-                        | EntryFlags::Accessed.as_u64()
-                        | EntryFlags::Dirty.as_u64()
-                        | flags.as_u64(),
-                );
-                entry.set_paddr(frame.addr());
+                // *entry = PageTableEntry::new(
+                //     EntryFlags::Valid.as_u64()
+                //         | EntryFlags::Accessed.as_u64()
+                //         | EntryFlags::Dirty.as_u64()
+                //         | flags.as_u64(),
+                // );
+                // entry.set_paddr(frame.addr());
                 return;
             }
 
@@ -50,6 +52,9 @@ fn map_to_frame(root: &mut PageTable, page: Page, frame: Frame, flags: EntryFlag
 
             let next_page_table = PageTable::new();
             let ptr = Box::into_raw(Box::new(next_page_table));
+
+            serial_debug!("Allocated L{} page table at 0x{:x}", lv - 1, ptr as usize);
+
             let next_page_table_paddr = Paddr::new(ptr as u64);
 
             *entry = PageTableEntry::new(EntryFlags::Valid.as_u64());
@@ -71,6 +76,32 @@ pub fn allocate_root() -> &'static mut PageTable {
 pub fn id_map(root: &mut PageTable, page: Page, flags: EntryFlags) {
     let frame = Frame::containing_address(page.addr().inner());
     map_to_frame(root, page, frame, flags);
+}
+
+pub fn map(root: &mut PageTable, page: Page, frame: Frame, flags: EntryFlags) {
+    map_to_frame(root, page, frame, flags);
+}
+
+pub fn map_range(
+    root: &mut PageTable,
+    vstart: usize,
+    pstart: usize,
+    size: usize,
+    flags: EntryFlags,
+) {
+    let vrange = PageRange::new(
+        Vaddr::new(vstart as u64),
+        Vaddr::new((vstart + size) as u64),
+    );
+    let prange = FrameRange::new(
+        Paddr::new(pstart as u64),
+        Paddr::new((pstart + size) as u64),
+    );
+    let range = vrange.zip(prange);
+    for (page, frame) in range {
+        serial_debug!("Mapping 0x{:x?} to 0x{:x?}", page.addr(), frame.addr());
+        map(root, page, frame, flags.clone());
+    }
 }
 
 pub fn map_alloc(root: &mut PageTable, page: Page, flags: EntryFlags) {

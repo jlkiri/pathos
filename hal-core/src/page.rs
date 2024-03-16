@@ -186,6 +186,31 @@ impl Iterator for PageRange {
     }
 }
 
+pub struct FrameRange {
+    start: Paddr,
+    end: Paddr,
+}
+
+impl FrameRange {
+    pub fn new(start: Paddr, end: Paddr) -> Self {
+        Self { start, end }
+    }
+}
+
+impl Iterator for FrameRange {
+    type Item = Frame;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start.0 <= self.end.0 {
+            let frame = Frame::containing_address(self.start.0);
+            self.start.0 += 0x1000;
+            Some(frame)
+        } else {
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
