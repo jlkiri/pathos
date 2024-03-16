@@ -23,6 +23,13 @@ fn map_to_frame(root: &mut PageTable, page: Page, frame: Frame, flags: EntryFlag
                 //     page.addr(),
                 //     entry.paddr()
                 // );
+                *entry = PageTableEntry::new(
+                    EntryFlags::Valid.as_u64()
+                        | EntryFlags::Accessed.as_u64()
+                        | EntryFlags::Dirty.as_u64()
+                        | flags.as_u64(),
+                );
+                entry.set_paddr(frame.addr());
                 return;
             }
 
@@ -105,8 +112,10 @@ pub fn translate_vaddr(root: &mut PageTable, vaddr: Vaddr) -> Option<Paddr> {
         }
 
         if entry.is_leaf() {
-            serial_debug!("LV: {}, {:x?}, {:b}", lv, entry.paddr(), entry.flags());
-            return Some(entry.paddr());
+            // serial_debug!("LV: {}, {:x?}, {:b}", lv, entry.paddr(), entry.flags());
+            let frame = entry.paddr();
+            let paddr = frame.inner() | vaddr.offset();
+            return Some(Paddr::new(paddr));
         }
 
         let next_page_table_paddr = entry.paddr();

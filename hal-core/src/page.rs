@@ -44,11 +44,16 @@ pub enum EntryFlags {
     RW = 1 << 1 | 1 << 2,
     RX = 1 << 1 | 1 << 3,
     RWX = 1 << 1 | 1 << 2 | 1 << 3,
+    RWXU = 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4,
 }
 
 impl EntryFlags {
     pub fn as_u64(self) -> u64 {
         self as u64
+    }
+
+    pub fn from(bits: u64) -> Self {
+        unsafe { core::mem::transmute(bits) }
     }
 }
 
@@ -97,6 +102,10 @@ impl Vaddr {
     pub fn new(addr: u64) -> Self {
         // Make bits 39-63 copy of bit 38 to form a canonical address
         Self(((addr << 25) as i64 >> 25) as u64)
+    }
+
+    pub fn offset(&self) -> u64 {
+        self.0 & 0xfff
     }
 
     pub fn indexed_vpn(self) -> [usize; 3] {

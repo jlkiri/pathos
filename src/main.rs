@@ -11,6 +11,7 @@ extern crate alloc;
 
 use ::core::arch::asm;
 use ::core::marker::FnPtr;
+use alloc::boxed::Box;
 use core::ops::Add;
 use core::ptr;
 use elf::endian::LittleEndian;
@@ -21,9 +22,9 @@ use hal_riscv::cpu::{Medeleg, Mideleg, Mstatus, Satp, Sstatus};
 use pathos::alloc::init_allocator;
 use pathos::debug::dump_supervisor_registers;
 use pathos::{
-    interrupts, nop_loop, page, ALLOC_SIZE, ALLOC_START, APP_CODE, BSS_END, BSS_START, DATA_END,
-    DATA_START, HEAP_SIZE, HEAP_START, KERNEL_STACK_END, KERNEL_STACK_START, RODATA_END,
-    RODATA_START, TEXT_END, TEXT_START,
+    interrupts, nop_loop, page, serial_print, ALLOC_SIZE, ALLOC_START, APP_CODE, BSS_END,
+    BSS_START, DATA_END, DATA_START, HEAP_SIZE, HEAP_START, KERNEL_STACK_END, KERNEL_STACK_START,
+    RODATA_END, RODATA_START, TEXT_END, TEXT_START,
 };
 use pathos::{serial_debug, serial_info, serial_println};
 
@@ -39,7 +40,6 @@ pub fn kinit() {
     };
 
     let medeleg = Medeleg { uecall: 1 };
-
     let mstatus = Mstatus {
         mpp: 1,
         ..Default::default()
@@ -106,24 +106,25 @@ pub fn main() {
         // sections works.
     }
 
-    {
-        page::map_alloc_range(root, 0x20_0000_0000, 0x20_0004_0000, EntryFlags::RWX);
-        serial_debug!("Mapped user space memory: 0x20_0000_0000 - 0x20_0004_0000");
+    serial_debug!("Sanity check passed");
 
-        let vaddr = Vaddr::new(0x20_0000_0000);
-        if let Some(addr) = page::translate_vaddr(root, vaddr) {
-            serial_debug!("Translated 0x{:x} to 0x{:x}", vaddr.inner(), addr.inner());
-        } else {
-            panic!("0x{:x} cannot be translated", vaddr.inner());
-        }
+    page::map_alloc_range(root, 0x20_0000_0000, 0x20_0004_0000, EntryFlags::RWX);
 
-        let vaddr = Vaddr::new(0x20_0004_0000);
-        if let Some(addr) = page::translate_vaddr(root, vaddr) {
-            serial_debug!("Translated 0x{:x} to 0x{:x}", vaddr.inner(), addr.inner());
-        } else {
-            panic!("0x{:x} cannot be translated", vaddr.inner());
-        }
-    }
+    serial_debug!("Mapped user space memory: 0x20_0000_0000 - 0x20_0004_0000");
+
+    // let vaddr = Vaddr::new(0x20_0000_0000);
+    // if let Some(addr) = page::translate_vaddr(root, vaddr) {
+    //     serial_debug!("Translated 0x{:x} to 0x{:x}", vaddr.inner(), addr.inner());
+    // } else {
+    //     panic!("0x{:x} cannot be translated", vaddr.inner());
+    // }
+
+    // let vaddr = Vaddr::new(0x20_0004_0000);
+    // if let Some(addr) = page::translate_vaddr(root, vaddr) {
+    //     serial_debug!("Translated 0x{:x} to 0x{:x}", vaddr.inner(), addr.inner());
+    // } else {
+    //     panic!("0x{:x} cannot be translated", vaddr.inner());
+    // }
 
     // Create satp entry and enable Sv39 paging
     let satp = Satp::new(8, root as *mut PageTable as usize);
@@ -133,71 +134,68 @@ pub fn main() {
 
     serial_info!("Enabled Sv39 paging");
 
-    interrupts::init_s_mode_ivt();
-    serial_debug!("Initialized S-mode interrupt vector table");
+    // interrupts::init_s_mode_ivt();
+    // serial_debug!("Initialized S-mode interrupt vector table");
 
-    let sstatus = hal_riscv::cpu::read_sstatus();
+    // let sstatus = hal_riscv::cpu::read_sstatus();
     let sstatus = Sstatus {
-        sie: 1,
-        // spp: 0,
-        ..sstatus
+        // sie: 1,
+        spp: 0,
+        ..Default::default()
     };
 
-    // {
-    //     let file =
-    //         ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
+    let file = ElfBytes::<LittleEndian>::minimal_parse(APP_CODE).expect("Failed to parse ELF file");
 
-    //     let text_section: SectionHeader = file
-    //         .section_header_by_name(".text")
-    //         .expect("Failed to find .text section")
-    //         .expect("Failed to parse .text section");
+    let text_section: SectionHeader = file
+        .section_header_by_name(".text")
+        .expect("Failed to find .text section")
+        .expect("Failed to parse .text section");
 
-    //     let data = file
-    //         .section_data(&text_section)
-    //         .expect("Failed to read .text section");
+    let data = file
+        .section_data(&text_section)
+        .expect("Failed to read .text section");
 
-    //     // Allocate enough virtual space for the program starting at 0x20_0000_0000,
-    //     // map the address range & mark it as executable. After that,
-    //     // load the program into the allocated memory.
+    serial_debug!("here");
 
-    //     // serial_debug!("Loaded program: {:x?}", data.0);
+    // Allocate enough virtual space for the program starting at 0x20_0000_0000,
+    // map the address range & mark it as executable. After that,
+    // load the program into the allocated memory.
 
-    //     let src = Vaddr::new(data.0.as_ptr() as u64);
-    //     let dst = Vaddr::new(0x20_0000_0000 as u64);
+    let src = Vaddr::new(data.0.as_ptr() as u64);
+    let dst = Vaddr::new(0x20_0000_0000 as u64);
 
-    //     serial_debug!(
-    //         "src: {:x?}, dst: {:x?}",
-    //         src.inner() as *const u8,
-    //         dst.inner() as *mut u8
-    //     );
+    serial_debug!(
+        "src: {:x?}, dst: {:x?}",
+        src.inner() as *const u8,
+        dst.inner() as *mut u8
+    );
 
-    //     unsafe {
-    //         ptr::copy_nonoverlapping(
-    //             src.inner() as *const u8,
-    //             dst.inner() as *mut u8,
-    //             data.0.len(),
-    //         );
-    //         serial_debug!("Loaded program into 0x20_0000_0000");
-    //     }
+    unsafe {
+        ptr::copy_nonoverlapping(
+            src.inner() as *const u8,
+            dst.inner() as *mut u8,
+            data.0.len(),
+        );
+        serial_debug!("Loaded program into 0x20_0000_0000");
+    }
 
-    //     // Echo data as sanity check
-    //     let val = unsafe { *(0x20_0000_0000 as *const u8) };
-    //     serial_println!("{:x?}", val);
+    // Sanity check first instruction at 0x20_0000_0000
+    let first_instruction = unsafe { *(0x20_0000_0000 as *const u32) };
+    serial_debug!(
+        "First instruction: 0x{:x} --- 0b{:b}",
+        first_instruction,
+        first_instruction
+    );
 
-    //     let sp = hal_riscv::cpu::read_sp();
-    //     hal_riscv::cpu::write_sscratch(sp);
+    page::map_alloc_range(root, 0x20_0000_0000, 0x20_0004_0000, EntryFlags::RWXU);
+    unsafe { asm!("sfence.vma zero, zero") }
 
-    //     unsafe { asm!("sfence.vma zero, zero") }
+    let sp = hal_riscv::cpu::read_sp();
+    hal_riscv::cpu::write_sscratch(sp);
 
-    //     // serial_debug!("Saved stack pointer to sscratch: 0x{:x}", sp);
+    serial_debug!("Saved stack pointer to sscratch: 0x{:x}", sp);
 
-    //     // let func: fn() = unsafe { core::mem::transmute(dst.inner()) };
-    //     // func();
-
-    //     hal_riscv::cpu::write_sepc(dst.inner() as *const ());
-    // }
-
-    hal_riscv::cpu::write_sepc((looop as fn()).addr());
+    hal_riscv::cpu::write_sepc(dst.inner() as *const ());
     hal_riscv::cpu::set_sstatus(sstatus);
 
     unsafe { asm!("sret") }
@@ -206,10 +204,6 @@ pub fn main() {
         unsafe { asm!("wfi") }
     }
 }
-
-#[no_mangle]
-#[repr(align(64))]
-pub fn looop() {}
 
 unsafe fn init_page_tables(root: &mut PageTable) {
     // I needed to set .text and .rodata to X because otherwise I

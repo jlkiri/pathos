@@ -292,8 +292,8 @@ pub fn read_mstatus() -> Mstatus {
 }
 
 #[inline(always)]
-pub fn read_mtval() -> *const () {
-    let mtval: *const ();
+pub fn read_mtval() -> *const u32 {
+    let mtval: *const u32;
     unsafe {
         asm!(
             "csrr {}, mtval",

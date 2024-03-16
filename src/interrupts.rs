@@ -78,11 +78,36 @@ fn dispatch_machine_exception() {
         Cause::Exception(Exception::InstructionPageFault) => {
             dump_machine_registers();
             serial_debug!("Instruction page fault ::: {:?}", mcause);
-            // panic!("Instruction page fault ::: {:?}", mcause)
             let mstatus = cpu::read_mstatus();
+            let mtval = cpu::read_mtval();
+            unsafe {
+                serial_debug!("mtval = {:b}", *mtval);
+            }
             let mstatus = Mstatus { mpp: 1, ..mstatus };
             cpu::write_mstatus(mstatus);
             cpu::write_mepc_next();
+            loop {}
+        }
+        Cause::Exception(Exception::InstructionFault) => {
+            dump_machine_registers();
+            serial_debug!("Instruction access fault ::: {:?}", mcause);
+            let mstatus = cpu::read_mstatus();
+            let mtval = cpu::read_mtval();
+            serial_debug!("mtval ::: {:?}", mtval);
+            let mstatus = Mstatus { mpp: 1, ..mstatus };
+            cpu::write_mstatus(mstatus);
+            cpu::write_mepc_next();
+            loop {}
+        }
+        Cause::Exception(Exception::IllegalInstruction) => {
+            dump_machine_registers();
+            serial_debug!("Illegal instruction ::: {:?}", mcause);
+            let mstatus = cpu::read_mstatus();
+            // let mtval = cpu::read_mtval();
+            let mstatus = Mstatus { mpp: 1, ..mstatus };
+            cpu::write_mstatus(mstatus);
+            cpu::write_mepc_next();
+            loop {}
         }
         _ => {
             // dump_machine_registers();
