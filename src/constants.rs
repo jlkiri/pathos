@@ -1,0 +1,1 @@
+pub const TASK_BEGIN_VADDR: u64 = 0x20_0000_0000;
